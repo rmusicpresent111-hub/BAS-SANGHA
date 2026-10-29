@@ -1,0 +1,326 @@
+{
+  "committeeMembers": [
+    {
+      "id": "cmvt0m6ty0000q01pwvcyx1c7",
+      "name": "Sourav Pramanik",
+      "role": "President",
+      "phone": "9876543210",
+      "photoUrl": "/images/member-1.png",
+      "sortOrder": 1,
+      "active": true,
+      "createdAt": "2026-10-29T04:00:16.919Z"
+    },
+    {
+      "id": "cmvq9nqsm0007nkkfk4pf5x8w",
+      "name": "Haripada Bhattacharya",
+      "role": "Vice President",
+      "phone": "9876543211",
+      "photoUrl": "/images/member-2.png",
+      "sortOrder": 2,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.463Z"
+    },
+    {
+      "id": "cmvq9nqsm0008nkkfi8xo8a1y",
+      "name": "Rupsa Mondal",
+      "role": "Secretary",
+      "phone": "9876543212",
+      "photoUrl": "/images/member-3.png",
+      "sortOrder": 3,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.463Z"
+    },
+    {
+      "id": "cmvq9nqsm0009nkkfr8fcy48g",
+      "name": "Bapan Sardar",
+      "role": "Treasurer",
+      "phone": "9876543213",
+      "photoUrl": "/images/member-4.png",
+      "sortOrder": 4,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.463Z"
+    },
+    {
+      "id": "cmvq9nqsm000ankkf0t4y0jfu",
+      "name": "Anita Ghosh",
+      "role": "Cultural Head",
+      "phone": "9876543214",
+      "photoUrl": "/images/member-5.png",
+      "sortOrder": 5,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.463Z"
+    },
+    {
+      "id": "cmvq9nqsm000bnkkf55j3aycz",
+      "name": "Prakash Nandi",
+      "role": "Sports Head",
+      "phone": "9876543215",
+      "photoUrl": "/images/member-6.png",
+      "sortOrder": 6,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.463Z"
+    }
+  ],
+  "banners": [
+    {
+      "id": "cmvq9nqsl0002nkkfse8odufa",
+      "title": "Football Tournament 2025",
+      "subtitle": "Dekchin Gobindapur B.A.S Sangha presents",
+      "badge": "খেলার স্মৃতি",
+      "imageUrl": "/images/banner-football.png",
+      "objectFit": null,
+      "sortOrder": 2,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.461Z"
+    },
+    {
+      "id": "cmvq9nqsl0003nkkftapbc5cp",
+      "title": "Cricket Tournament 2026",
+      "subtitle": "Champions are made on the field",
+      "badge": null,
+      "imageUrl": "/images/banner-cricket.png",
+      "objectFit": "cover",
+      "sortOrder": 3,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.461Z"
+    },
+    {
+      "id": "cmvq9nqsl0004nkkfw6ro68g9",
+      "title": "Drawing Competition 2025",
+      "subtitle": "Let the little hands paint their dreams",
+      "badge": null,
+      "imageUrl": "/images/banner-drawing.png",
+      "objectFit": null,
+      "sortOrder": 4,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.461Z"
+    },
+    {
+      "id": "cmvq9nqsl0005nkkfl3gi0mr8",
+      "title": "Blood Donation Camp 2025",
+      "subtitle": "Donate blood, save a life",
+      "badge": null,
+      "imageUrl": "/images/banner-blood.png",
+      "objectFit": null,
+      "sortOrder": 5,
+      "active": true,
+      "createdAt": "2026-10-27T05:50:07.461Z"
+    }
+  ],
+  "quickActions": [
+    {
+      "id": "cmvrinq8u0000p0gfrj153n7q",
+      "label": "পুজো কমিটি",
+      "icon": "landmark",
+      "color": "violet",
+      "link": "committee",
+      "sortOrder": 1,
+      "active": true
+    },
+    {
+      "id": "cmvrinq8u0001p0gf1wi8v82z",
+      "label": "খেলা টুর্নার্ন্ট",
+      "icon": "volleyball",
+      "color": "orange",
+      "link": "events",
+      "sortOrder": 2,
+      "active": true
+    },
+    {
+      "id": "cmvrinq8u0002p0gf6fqgx9ba",
+      "label": "সদস্য তালিকা",
+      "icon": "users",
+      "color": "green",
+      "link": "members",
+      "sortOrder": 3,
+      "active": true
+    },
+    {
+      "id": "cmvrinq8u0003p0gfy2fzqlhz",
+      "label": "নোটিশ",
+      "icon": "file-text",
+      "color": "sky",
+      "link": "notice",
+      "sortOrder": 4,
+      "active": true
+    },
+    {
+      "id": "cmvrinq8u0004p0gfwx4yz2ar",
+      "label": "গ্যালারি",
+      "icon": "image",
+      "color": "rose",
+      "link": "gallery",
+      "sortOrder": 5,
+      "active": true
+    },
+    {
+      "id": "cmvrinq8u0005p0gfe1abp2zc",
+      "label": "যোগাযোগ",
+      "icon": "headphones",
+      "color": "purple",
+      "link": "more",
+      "sortOrder": 6,
+      "active": true
+    }
+  ],
+  "pujoHighlights": [
+    {
+      "id": "cmvrinq8w0006p0gftrxyc8r9",
+      "badge": "সর্বজনীন",
+      "title": "শ্রী শ্রী শ্যামা পুজা",
+      "subtitle": "পরিচালনায় - ভৈরব আলো শ্যামা সংঘ",
+      "location": "দক্ষিণ গোবিন্দপুর",
+      "dateText": "পুজো শুরু: ৬ কার্তিক",
+      "imageUrl": "/images/kali-maa.png",
+      "detailImageUrl": "/images/pujo-donation-card.jpg",
+      "active": true
+    }
+  ],
+  "notices": [
+    {
+      "id": "cmvrinq8y0007p0gfiwt341lo",
+      "title": "পুজো মণ্ডপ সাজসজ্জায় স্বেচ্ছাশ্রমিক দরকার",
+      "body": "আগামী ১লা নভেম্বর সকাল ৯টা থেকে পুজো মণ্ডপের সাজসজ্জা শুরু হবে। যারা যুক্ত হতে চান কমিটির যেকোনো সদস্যের সাথে যোগাযোগ করুন। সবাই একসাথে হলেই পুজো হবে সুন্দর।",
+      "createdAt": "2026-10-28T02:49:49.475Z",
+      "active": true
+    },
+    {
+      "id": "cmvrinq8y0008p0gfty1qv8ms",
+      "title": "২০২৬ সালের সাধারণ সদস্য ভর্তি চলছে",
+      "body": "নতুন সদস্য ভর্তি চলছে। Member Join সেকশন থেকে ফর্ম পূরণ করে ফি জমা দিন। বিস্তারিত জানতে কমিটি অফিসে যোগাযোগ করুন।",
+      "createdAt": "2026-10-28T02:49:49.475Z",
+      "active": true
+    }
+  ],
+  "events": [
+    {
+      "id": "cmvq9nqso000cnkkfd7dcuzkg",
+      "type": "FOOTBALL",
+      "title": "Football Tournament 2025",
+      "bannerUrl": "/images/banner-football.png",
+      "description": "Open to all village clubs. 11-a-side knock-out format. Winner prize ₹11,000 & Runner-up ₹5,000.",
+      "eventDate": "12th January 2025, 4:00 PM onwards",
+      "venue": "Dekchin Gobindapur Playground",
+      "fee": 1000,
+      "active": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "cmvq9nqsp000dnkkfos1nixhp",
+      "type": "CRICKET",
+      "title": "Cricket Tournament 2025",
+      "bannerUrl": "/images/banner-cricket.png",
+      "description": "8-over night cricket. Maximum 12 players per team. Winner prize ₹15,000 & Man of the Series special award.",
+      "eventDate": "26th January 2025, 8:00 AM onwards",
+      "venue": "Dekchin Gobindapur Cricket Ground",
+      "fee": 1200,
+      "active": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "cmvq9nqsq000enkkf7zdlbnh3",
+      "type": "DRAWING",
+      "title": "Drawing Competition 2026",
+      "bannerUrl": "/images/banner-drawing.png",
+      "description": "🎨 তিনটি বিভাগ:\n\nক বিভাগ (কনিষ্ঠ • ০৮–১০ বছর)\nবিষয়: যেমন খুশি আঁকা\nজমা তারিখ: ১৩ নভেম্বর ২০২৬ এর পরে জমা\n\nখ বিভাগ (১০+ থেকে ১৩ বছর)\nবিষয়: দেওয়ালি সেলিব্রেশন\nজমা তারিখ: ১২ নভেম্বর ২০২৬ থেকে ১৩শে নভেম্বর ২০২৬ এর মধ্যে\n\nগ বিভাগ (১৩+ থেকে ১৬ বছর)\nবিষয়: আমার প্রিয় দেশনায়ক\nজমা তারিখ: ১২ নভেম্বর ২০২৬ থেকে ১৩শে নভেম্বর ২০২৬ এর মধ্যে\n\nএন্ট্রি ফি: ₹৩০ — পেমেন্টের রিসিট আমাদের WhatsApp 9883542663 বা ইমেইল bhoreraalosyamasangha@gmail.com এ পাঠাতে হবে।",
+      "eventDate": "8th November 2026, 9:00 AM onwards",
+      "venue": "Dakshin Gobindapur Shib Mandir Prangan, South 24 Parganas",
+      "fee": 30,
+      "active": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "cmvq9nqsr000fnkkf2qpmawbk",
+      "type": "BLOOD",
+      "title": "Blood Donation Camp 2026",
+      "bannerUrl": "/images/banner-blood.png",
+      "description": "🏥 সংস্থা: Government Blood Bank of Diamond Harbour (সরকারি রক্তব্যাংক, ডায়মন্ড হারবার)।\n\n✅ প্রত্যেক রক্তদাতার জন্য ফ্রি স্বাস্থ্য পরীক্ষা\n✅ রিফ্রেশমেন্ট ও সার্টিফিকেট\n\nসকাল ৯টা থেকে শুরু — দক্ষিণ গোবিন্দপুর শিবমন্দির প্রাঙ্গণে আয়োজিত।",
+      "eventDate": "9th November 2026, 9:00 AM onwards",
+      "venue": "Dakshin Gobindapur Shib Mandir Prangan, South 24 Parganas",
+      "fee": 0,
+      "active": true,
+      "sortOrder": 4
+    }
+  ],
+  "galleryPhotos": [
+    {
+      "id": "cmvq9nqss000gnkkf9we6pu3e",
+      "year": "2023",
+      "caption": "Annual Sports Day - Trophy Ceremony",
+      "imageUrl": "/images/event-1.png",
+      "createdAt": "2026-10-27T05:50:07.468Z"
+    },
+    {
+      "id": "cmvq9nqss000hnkkfrmwdnmvr",
+      "year": "2023",
+      "caption": "Cultural Night Performance",
+      "imageUrl": "/images/event-2.png",
+      "createdAt": "2026-10-27T05:50:07.468Z"
+    },
+    {
+      "id": "cmvq9nqss000inkkflcahr73b",
+      "year": "2023",
+      "caption": "Blood Donation Camp 2023",
+      "imageUrl": "/images/event-3.png",
+      "createdAt": "2026-10-27T05:50:07.468Z"
+    },
+    {
+      "id": "cmvq9nqss000jnkkf33am9hyv",
+      "year": "2022",
+      "caption": "Drawing Competition Prize Distribution",
+      "imageUrl": "/images/event-4.png",
+      "createdAt": "2026-10-27T05:50:07.468Z"
+    },
+    {
+      "id": "cmvq9nqss000knkkfcmzs0mnw",
+      "year": "2022",
+      "caption": "Football Champions 2022",
+      "imageUrl": "/images/event-5.png",
+      "createdAt": "2026-10-27T05:50:07.468Z"
+    },
+    {
+      "id": "cmvq9nqss000lnkkfxiuc7ijt",
+      "year": "2021",
+      "caption": "Foundation Day & General Meeting",
+      "imageUrl": "/images/event-6.png",
+      "createdAt": "2026-10-27T05:50:07.468Z"
+    },
+    {
+      "id": "cmvq9nqss000mnkkfudhv7ftz",
+      "year": "2021",
+      "caption": "Our First Cultural Programme",
+      "imageUrl": "/images/event-2.png",
+      "createdAt": "2026-10-27T05:50:07.468Z"
+    }
+  ],
+  "settings": [
+    {
+      "key": "memberFee",
+      "value": "1500"
+    },
+    {
+      "key": "upiId",
+      "value": "7908344580@jio"
+    },
+    {
+      "key": "upiName",
+      "value": "ARINDAM DAS"
+    },
+    {
+      "key": "clubAddress",
+      "value": "Dekchin Gobindapur, West Bengal"
+    },
+    {
+      "key": "headerTagline",
+      "value": "Tradition · Culture · Community"
+    },
+    {
+      "key": "headerQuote",
+      "value": "একসাথে আমরা, একসাথে শক্তি"
+    },
+    {
+      "key": "memberJoinSubtitle",
+      "value": "আমাদের সাথে যুক্ত হোন"
+    }
+  ]
+}

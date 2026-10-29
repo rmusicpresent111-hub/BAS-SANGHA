@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite-compatible. Local dev uses a file: URL. On Vercel, DATABASE_URL is a
+// libsql:// (Turso) URL and src/lib/db.ts transparently uses the official
+// @prisma/adapter-libsql driver adapter — same schema, same SQL.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  name                String
+  passwordHash        String
+  role                String   @default("USER") // USER | ADMIN
+  tokensInvalidatedAt Int? // unix sec — every token issued at/before this is dead
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+/** Individually revoked JWTs (logout / account delete). Survives restarts. */
+model RevokedToken {
+  jti String @id // JWT token id
+  exp Int    // unix sec — pruned once past
+}
+
+model CommitteeMember {
+  id        String   @id @default(cuid())
+  name      String
+  role      String   @default("Member") // designation
+  phone     String
+  photoUrl  String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Banner {
+  id         String   @id @default(cuid())
+  title      String
+  subtitle   String?
+  badge      String? // small pill label shown top-left (e.g. "খেলার স্মৃতি")
+  imageUrl   String
+  objectFit  String? // 'cover' (default) | 'contain' (blurred bg + full artwork)
+  sortOrder  Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model QuickAction {
+  id        String  @id @default(cuid())
+  label     String
+  icon      String  @default("landmark") // icon key, see src/lib/qa-options.ts
+  color     String  @default("violet")   // color key, see src/lib/qa-options.ts
+  link      String  @default("home")     // view key | 'committee' | 'donation'
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+}
+
+model PujoHighlight {
+  id             String  @id @default(cuid())
+  badge          String  @default("সর্বজনীন")
+  title          String
+  subtitle       String?
+  location       String?
+  dateText       String?
+  imageUrl       String  @default("/images/kali-maa.png")
+  detailImageUrl String? // large invitation card shown in the details dialog
+  active         Boolean @default(true)
+}
+
+model Notice {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  active    Boolean  @default(true)
+}
+
+model Event {
+  id          String  @id @default(cuid())
+  type        String  @unique // CRICKET | FOOTBALL | DRAWING | BLOOD
+  title       String
+  bannerUrl   String
+  description String?
+  eventDate   String? // display text
+  venue       String?
+  fee         Int     @default(0)
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
+}
+
+model MemberRequest {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  age        String
+  fatherName String
+  address    String
+  phone      String
+  email      String
+  photoUrl   String? // member photo: /api/files?name=xxx.jpg
+  cardNumber String? // membership ID, e.g. B-A-S-982609 — assigned on approval
+  fee        Int
+  utr        String
+  status     String   @default("WAITING") // WAITING | APPROVED | REJECTED
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model TournamentRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // CRICKET | FOOTBALL
+  teamName  String
+  address   String
+  phone     String
+  fee       Int
+  utr       String
+  status    String   @default("WAITING")
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DrawingRequest {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  fatherName String
+  className  String
+  schoolName String
+  docUrl     String
+  status     String   @default("WAITING")
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model BloodRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  address   String
+  phone     String
+  status    String   @default("WAITING")
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model GalleryPhoto {
+  id        String   @id @default(cuid())
+  year      String // 2021 | 2022 | 2023 ...
+  caption   String?
+  imageUrl  String
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+/**
+ * Uploaded images/documents stored as base64 rows in the DB.
+ * Vercel-safe: serverless filesystems are read-only/ephemeral, so uploads
+ * cannot live on disk. Same files are also used in local dev for parity.
+ */
+model StoredFile {
+  name      String   @id // generated name, e.g. 1793081429673_fee33cfdb017.png
+  mime      String // e.g. image/png — served as Content-Type
+  size      Int // original byte size
+  data      String // base64 payload
+  createdAt DateTime @default(now())
+}
+
+/** FCM web-push registration tokens (Firebase Cloud Messaging). */
+model PushToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String? // linked when the app user is logged in
+  platform  String   @default("web")
+  userAgent String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Donation {
+  id         String   @id @default(cuid())
+  orderId    String   @unique // server-generated, e.g. BAS-D-8F3K2Q9M
+  userId     String
+  amount     Int // validated server-side (₹10 – ₹1,00,000)
+  utr        String? // 12-digit UPI transaction ref, submitted after paying
+  status     String   @default("PENDING") // PENDING | SUBMITTED | VERIFIED | REJECTED
+  payerName  String
+  payerPhone String   @default("")
+  note       String? // admin remark on reject
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

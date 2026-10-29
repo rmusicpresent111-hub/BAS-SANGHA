@@ -1,0 +1,224 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import { toPng } from 'html-to-image'
+import { BadgeCheck, CalendarDays, Download, Fingerprint, IndianRupee, Loader2, Phone, Share2, User } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
+import { formatINR } from './common'
+
+export interface DonationReceiptData {
+  orderId: string
+  amount: number
+  status: string // PENDING | SUBMITTED | VERIFIED | REJECTED
+  payerName: string
+  payerPhone: string
+  utr?: string | null
+  note?: string | null
+  createdAt: string
+}
+
+const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: 'PAYMENT PENDING', cls: 'bg-stone-100 text-stone-600' },
+  SUBMITTED: { label: 'UNDER VERIFICATION', cls: 'bg-amber-100 text-amber-800' },
+  VERIFIED: { label: 'PAYMENT VERIFIED ✓', cls: 'bg-emerald-100 text-emerald-800' },
+  REJECTED: { label: 'PAYMENT REJECTED', cls: 'bg-red-100 text-red-700' },
+}
+
+/**
+ * Printable donation receipt (B.A.S Sangha) with download-as-PNG.
+ * Shared by the donor flow (DonationDialog) and the Admin "Donations" tab —
+ * every value comes from the server, never from client input.
+ */
+export default function DonationReceipt({ donation, compact }: { donation: DonationReceiptData; compact?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
+  const [downloading, setDownloading] = useState(false)
+  const [sharing, setSharing] = useState(false)
+
+  const status = STATUS_MAP[donation.status] || STATUS_MAP.PENDING
+  const date = new Date(donation.createdAt).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  const receiptText = [
+    'ভোরের আলো সংঘ (B.A.S Sangha) — Donation Receipt',
+    `Amount: ₹${donation.amount.toLocaleString('en-IN')} (${status.label})`,
+    `Donor: ${donation.payerName}`,
+    donation.payerPhone ? `Phone: ${donation.payerPhone}` : '',
+    `Order ID: ${donation.orderId}`,
+    donation.utr ? `UTR: ${donation.utr}` : '',
+    `Date: ${date}`,
+    'Dekchin Gobindapur • Estd 2021',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const renderPng = async () => {
+    const node = ref.current
+    if (!node) throw new Error('receipt not ready')
+    const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
+    const blob = await (await fetch(dataUrl)).blob()
+    return new File([blob], `BAS-Donation-${donation.orderId}.png`, { type: 'image/png' })
+  }
+
+  const handleDownload = async () => {
+    const node = ref.current
+    if (!node || downloading) return
+    setDownloading(true)
+    try {
+      const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
+      const link = document.createElement('a')
+      link.href = dataUrl
+      link.download = `BAS-Donation-${donation.orderId}.png`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      toast({ title: 'Receipt downloaded ✓' })
+    } catch {
+      toast({ title: 'Download failed — please try again', variant: 'destructive' })
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  /** Share the receipt image via WhatsApp etc. (Web Share API); falls back to copying the details. */
+  const handleShare = async () => {
+    if (sharing) return
+    setSharing(true)
+    try {
+      const file = await renderPng()
+      const nav = navigator as Navigator & {
+        canShare?: (data: { files?: File[] }) => boolean
+      }
+      if (typeof navigator.share === 'function' && nav.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Donation Receipt — B.A.S Sangha',
+          text: `ভোরের আলো সংঘ (B.A.S Sangha) — donation receipt ₹${donation.amount.toLocaleString('en-IN')}`,
+        })
+        toast({ title: 'Receipt shared ✓' })
+      } else {
+        await navigator.clipboard.writeText(receiptText)
+        toast({ title: 'This device can\'t share images — receipt details copied instead ✓' })
+      }
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') return // user closed the share sheet
+      try {
+        await navigator.clipboard.writeText(receiptText)
+        toast({ title: 'Receipt details copied — paste anywhere to share ✓' })
+      } catch {
+        toast({ title: 'Share failed — please Download the receipt and share it', variant: 'destructive' })
+      }
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  return (
+    <div className={compact ? 'w-full max-w-[320px]' : 'mx-auto w-full max-w-[350px]'}>
+      <div
+        ref={ref}
+        style={{ containerType: 'inline-size' }}
+        className="@container relative overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-amber-300"
+      >
+        {/* header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 px-[4cqw] py-[3.4cqw]">
+          <span aria-hidden className="pointer-events-none absolute -right-[8cqw] -top-[14cqw] h-[34cqw] w-[34cqw] rounded-full border border-amber-300/20" />
+          <div className="flex items-center gap-[2.6cqw]">
+            <img
+              src="/logo.png"
+              alt="B.A.S Sangha logo"
+              className="h-[11cqw] w-[11cqw] shrink-0 rounded-full bg-white object-cover p-[0.6cqw] ring-2 ring-amber-300/80"
+            />
+            <div className="min-w-0">
+              <p className="text-[5cqw] font-black leading-[1.25] text-white">ভোরের আলো সংঘ</p>
+              <p className="text-[2.8cqw] font-bold uppercase leading-[1.3] tracking-[0.3em] text-amber-300">B.A.S Sangha</p>
+            </div>
+          </div>
+          <p className="mt-[1.6cqw] text-[2.6cqw] font-bold uppercase tracking-[0.22em] text-blue-200">Donation Receipt</p>
+        </div>
+
+        {/* amount strip */}
+        <div className="flex items-center justify-between border-b-2 border-dashed border-stone-200 bg-amber-50/70 px-[4cqw] py-[3cqw]">
+          <div>
+            <p className="text-[2.5cqw] font-bold uppercase tracking-wider text-stone-400">Amount Received</p>
+            <p className="flex items-center text-[8.5cqw] font-black leading-tight text-stone-900">
+              <IndianRupee className="h-[6cqw] w-[6cqw] stroke-[3]" strokeWidth={3} />
+              {donation.amount.toLocaleString('en-IN')}
+            </p>
+          </div>
+          <span className={`rounded-full px-[3cqw] py-[1.4cqw] text-[2.7cqw] font-black tracking-wide ${status.cls}`}>
+            {status.label}
+          </span>
+        </div>
+
+        {/* details */}
+        <div className="space-y-[2.6cqw] px-[4cqw] py-[3.4cqw]">
+          <Row icon={User} label="Donor Name" value={donation.payerName} />
+          {donation.payerPhone ? <Row icon={Phone} label="Phone" value={donation.payerPhone} /> : null}
+          <Row icon={Fingerprint} label="Payment Order ID" value={donation.orderId} mono />
+          {donation.utr ? <Row icon={BadgeCheck} label="UPI Transaction ID (UTR)" value={donation.utr} mono /> : null}
+          <Row icon={CalendarDays} label="Date & Time" value={date} />
+          {donation.note ? <Row icon={BadgeCheck} label="Committee Note" value={donation.note} /> : null}
+        </div>
+
+        {/* footer */}
+        <div className="border-t border-dashed border-stone-200 bg-stone-50 px-[4cqw] py-[2.6cqw] text-center">
+          <p className="text-[2.5cqw] font-semibold leading-relaxed text-stone-500">
+            ধন্যবাদ! আপনার সহযোগিতাই আমাদের পুজো ও সমাজসেবা সামনে রাখবে 🙏
+          </p>
+          <p className="mt-[1cqw] text-[2.2cqw] text-stone-400">Dekchin Gobindapur • Estd 2021 • computer generated receipt</p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button
+          onClick={handleShare}
+          disabled={sharing}
+          className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-4 text-sm font-bold text-white hover:from-emerald-700 hover:to-emerald-600"
+        >
+          {sharing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Share2 className="mr-2 h-4 w-4" />}
+          {sharing ? 'Preparing…' : 'Share Receipt'}
+        </Button>
+        <Button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="rounded-xl bg-gradient-to-r from-blue-900 to-blue-800 py-4 text-sm font-bold text-white hover:from-blue-800 hover:to-blue-700"
+        >
+          {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+          {downloading ? 'Generating…' : 'Download'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function Row({
+  icon: Icon,
+  label,
+  value,
+  mono,
+}: {
+  icon: typeof User
+  label: string
+  value: string
+  mono?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-[2cqw]">
+      <span className="flex shrink-0 items-center gap-[1.6cqw] text-[2.6cqw] font-semibold text-stone-400">
+        <Icon className="h-[3.4cqw] w-[3.4cqw]" /> {label}
+      </span>
+      <span
+        className={`min-w-0 truncate text-right text-[3cqw] font-bold text-stone-800 ${mono ? 'font-mono tracking-tight' : ''}`}
+      >
+        {value || '—'}
+      </span>
+    </div>
+  )
+}
