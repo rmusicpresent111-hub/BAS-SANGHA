@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>B.A.S Sangha</title>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #150404;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .wrap { text-align: center; color: #fbbf24; }
+    .wrap img { width: 96px; height: 96px; object-fit: contain; background: #fff; border-radius: 50%; padding: 6px; }
+    .wrap h1 { letter-spacing: 0.45em; padding-left: 0.45em; font-size: 15px; margin: 18px 0 6px; color: #fbbf24; }
+    .wrap p { color: rgba(254, 243, 199, 0.6); font-size: 13px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img src="./logo.png" alt="B.A.S Sangha" />
+    <h1>B.A.S SANGHA</h1>
+    <p>লোড হচ্ছে…</p>
+  </div>
+  <script>
+    // Fallback only — the Capacitor config points the WebView straight at the
+    // live site, so this page normally never appears.
+    setTimeout(function () {
+      location.replace('https://bas-sangha.vercel.app')
+    }, 800)
+  </script>
+</body>
+</html>

@@ -20,6 +20,7 @@ import NoticeScreen from '@/components/app/NoticeScreen'
 import EventsScreen from '@/components/app/EventsScreen'
 import MoreScreen from '@/components/app/MoreScreen'
 import MembersScreen from '@/components/app/MembersScreen'
+import AndroidBackHandler from '@/components/app/AndroidBackHandler'
 
 const PROTECTED: View[] = ['home', 'member-join', 'cricket', 'football', 'drawing', 'blood', 'gallery', 'admin', 'notice', 'events', 'more', 'members']
 
@@ -55,13 +56,16 @@ export default function Page() {
     prefetch(['/api/public/home', '/api/public/notices', '/api/public/gallery'])
   }, [])
 
-  // route guard: protected views need login
+  // route guard: protected views need login (redirect — must not pollute the
+  // Android back history)
   useEffect(() => {
-    if (booted && !user && PROTECTED.includes(view)) setView('auth')
+    if (booted && !user && PROTECTED.includes(view)) setView('auth', { push: false })
   }, [booted, user, view, setView])
 
   if (!booted) {
     return (
+      <>
+      <AndroidBackHandler />
       <div className="splash-bg flex min-h-dvh flex-col items-center justify-center gap-7">
         <motion.div
           initial={{ opacity: 0, scale: 0.75 }}
@@ -87,6 +91,7 @@ export default function Page() {
           B.A.S SANGHA
         </motion.h1>
       </div>
+      </>
     )
   }
 
@@ -136,6 +141,8 @@ export default function Page() {
   }
 
   return (
+    <>
+    <AndroidBackHandler />
     <AnimatePresence mode="wait">
       <motion.div
         key={view}
@@ -147,5 +154,6 @@ export default function Page() {
         {screen}
       </motion.div>
     </AnimatePresence>
+    </>
   )
 }
