@@ -1446,6 +1446,8 @@ function SettingsTab() {
   const [settings, setSettings] = useState<Record<string, string> | null>(null)
   const [busy, setBusy] = useState(false)
   const [restoreBusy, setRestoreBusy] = useState(false)
+  const [resetArm, setResetArm] = useState(false)
+  const [resetBusy, setResetBusy] = useState(false)
 
   useEffect(() => {
     apiFetch('/api/admin/settings').then((r) => r.json()).then((d) => setSettings(d.settings || {})).catch(() => setSettings({}))
@@ -1465,6 +1467,31 @@ function SettingsTab() {
       toast({ title: err instanceof Error ? err.message : 'Restore failed', variant: 'destructive' })
     } finally {
       setRestoreBusy(false)
+    }
+  }
+
+  // danger zone: two-step arm-then-confirm (second press within 6s fires it)
+  const runResetUsers = async () => {
+    if (!resetArm) {
+      setResetArm(true)
+      setTimeout(() => setResetArm(false), 6000)
+      return
+    }
+    setResetArm(false)
+    setResetBusy(true)
+    try {
+      const res = await apiFetch('/api/admin/reset-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast({ title: data.message || 'সব user মুছে ফেলা হয়েছে ✓' })
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Reset failed', variant: 'destructive' })
+    } finally {
+      setResetBusy(false)
     }
   }
 
@@ -1522,6 +1549,15 @@ function SettingsTab() {
         </p>
         <Button disabled={restoreBusy} onClick={runRestore} className="mt-3 rounded-lg bg-blue-900 text-white hover:bg-blue-800">
           <Sparkles className="mr-1 h-4 w-4" /> {restoreBusy ? 'ফিরিয়ে আনা হচ্ছে...' : 'এখনই রিস্টোর করুন'}
+        </Button>
+      </div>
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+        <p className="text-sm font-black text-red-900">⚠️ Danger Zone — সব Registered User মুছে ফেলুন</p>
+        <p className="mt-1 text-xs leading-relaxed text-red-900/80">
+          অ্যাপের সব registered user, সব donation, member/tournament/drawing/blood request এবং notification token একসাথে মুছে যাবে — member list একদম নতুনের মতো ফাঁকা হবে। আপনার নিজের admin account আর অ্যাপের কনটেন্ট (banner / কমিটি / নোটিশ / gallery) অটুট থাকবে। <b>এটা আর ফেরানো যাবে না!</b>
+        </p>
+        <Button disabled={resetBusy} onClick={runResetUsers} className="mt-3 rounded-lg bg-red-600 text-white hover:bg-red-700">
+          <Trash2 className="mr-1 h-4 w-4" /> {resetBusy ? 'মুছে ফেলা হচ্ছে...' : resetArm ? '⚠️ নিশ্চিত? আবার চাপুন' : 'সব User মুছুন (রিসেট)'}
         </Button>
       </div>
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">

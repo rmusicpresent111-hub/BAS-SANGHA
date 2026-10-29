@@ -115,7 +115,9 @@ async function isRevoked(p: TokenPayload): Promise<boolean> {
       where: { id: p.uid },
       select: { tokensInvalidatedAt: true },
     })
-    if (user?.tokensInvalidatedAt != null && (p.iat ?? 0) <= user.tokensInvalidatedAt) return true
+    // user deleted (e.g. admin reset-users) → every old session is dead now
+    if (!user) return true
+    if (user.tokensInvalidatedAt != null && (p.iat ?? 0) <= user.tokensInvalidatedAt) return true
   } catch (e) {
     // DB unreachable: fall back to the in-memory view rather than hard-failing
     console.error('revocation DB check failed', e)
