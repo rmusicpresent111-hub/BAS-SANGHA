@@ -81,3 +81,7 @@ env.keys.bak
 # dev-only artifacts (not for repo)
 /scripts/shots
 /scripts/audit
+
+# android signing keystore (kept out of repo, stored in GitHub Secrets)
+bas-sangha.keystore
+.keystore-pass.txt
