@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSQL } from '@prisma/adapter-libsql'
-import { createClient } from '@libsql/client'
 
 /**
  * Single Prisma client for the whole app, with transparent hosting support:
@@ -17,12 +16,14 @@ function makePrisma(): PrismaClient {
   const url = process.env.DATABASE_URL || ''
 
   if (url.startsWith('libsql:')) {
-    const libsql = createClient({
-      url,
-      authToken: process.env.DATABASE_AUTH_TOKEN || undefined,
-    })
+    // adapter-libsql v6 takes the libsql Config (url + authToken) directly and
+    // creates/manages the client internally. Passing a Client instance breaks
+    // it ("The URL 'undefined' is not in a valid format").
     return new PrismaClient({
-      adapter: new PrismaLibSQL(libsql),
+      adapter: new PrismaLibSQL({
+        url,
+        authToken: process.env.DATABASE_AUTH_TOKEN || undefined,
+      }),
       // Security audit: query-level logging printed emails/phones/UTRs into
       // server logs. Only errors are logged now (and they stay server-side).
       log: ['error'],
