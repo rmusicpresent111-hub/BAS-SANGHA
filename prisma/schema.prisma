@@ -1,6 +1,5 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 // SQLite-compatible. Local dev uses a file: URL. On Vercel, DATABASE_URL is a
