@@ -30,9 +30,14 @@ export async function GET(req: NextRequest) {
       'clubAddress',
     ])
     for (const s of settings) if (PUBLIC_KEYS.has(s.key)) settingsMap[s.key] = s.value
+    // admin can hide committee phone numbers from the public app
+    const hidePhones = (settings.find((s) => s.key === 'hideCommitteePhone')?.value === '1')
+    const publicMembers = hidePhones
+      ? members.map((m) => ({ ...m, phone: '' }))
+      : members
     return NextResponse.json({
       banners,
-      members,
+      members: publicMembers,
       events,
       settings: settingsMap,
       quickActions,

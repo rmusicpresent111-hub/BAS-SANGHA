@@ -49,3 +49,17 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update donation' }, { status: 500 })
   }
 }
+
+/** DELETE ?id= — ADMIN only, permanently remove one donation entry. */
+export async function DELETE(req: NextRequest) {
+  const session = getUser(req)
+  if (session?.role !== 'ADMIN') return deny()
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  try {
+    await db.donation.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: 'Donation not found' }, { status: 404 })
+  }
+}

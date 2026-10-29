@@ -101,3 +101,23 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update request' }, { status: 500 })
   }
 }
+
+/** DELETE ?tab=member|tournament|drawing|blood&id= — ADMIN only, permanently remove one request. */
+export async function DELETE(req: NextRequest) {
+  const session = getUser(req)
+  if (session?.role !== 'ADMIN') return deny()
+  const tab = (req.nextUrl.searchParams.get('tab') || '') as Tab
+  const id = req.nextUrl.searchParams.get('id')
+  if (!['member', 'tournament', 'drawing', 'blood'].includes(tab))
+    return NextResponse.json({ error: 'Invalid request type' }, { status: 400 })
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  try {
+    if (tab === 'member') await db.memberRequest.delete({ where: { id } })
+    else if (tab === 'tournament') await db.tournamentRequest.delete({ where: { id } })
+    else if (tab === 'drawing') await db.drawingRequest.delete({ where: { id } })
+    else await db.bloodRequest.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+  }
+}

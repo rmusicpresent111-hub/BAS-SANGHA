@@ -76,9 +76,11 @@ export default function MemberShowcase({ members }: { members: MemberDto[] }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[11px] font-bold text-blue-700">{m.role}</p>
                 <h3 className="truncate text-base font-black text-blue-950">{m.name}</h3>
-                <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-medium text-stone-500">
-                  <Phone className="h-3 w-3 text-emerald-600" /> {m.phone}
-                </p>
+                {m.phone && (
+                  <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-medium text-stone-500">
+                    <Phone className="h-3 w-3 text-emerald-600" /> {m.phone}
+                  </p>
+                )}
               </div>
             </div>
           ))}

@@ -38,12 +38,14 @@ export default function MembersScreen() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[11px] font-semibold text-stone-400">{m.role}</p>
                   <h3 className="truncate text-base font-black text-blue-950">{m.name}</h3>
-                  <a
-                    href={`tel:${m.phone}`}
-                    className="mt-0.5 flex w-fit items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100"
-                  >
-                    <Phone className="h-3 w-3" /> {m.phone}
-                  </a>
+                  {m.phone && (
+                    <a
+                      href={`tel:${m.phone}`}
+                      className="mt-0.5 flex w-fit items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      <Phone className="h-3 w-3" /> {m.phone}
+                    </a>
+                  )}
                 </div>
               </div>
             ))}

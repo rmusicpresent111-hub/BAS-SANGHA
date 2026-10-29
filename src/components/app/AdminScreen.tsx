@@ -12,6 +12,7 @@ import {
   Check,
   ChevronDown,
   ClipboardList,
+  Download,
   Droplet,
   HandCoins,
   ImagePlus,
@@ -134,6 +135,61 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
   )
 }
 
+/** Date-range picker + CSV report download — shared by Donations & Requests tabs. */
+function ReportsBar({ type, label }: { type: string; label: string }) {
+  const { toast } = useToast()
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const download = async () => {
+    setBusy(true)
+    try {
+      const params = new URLSearchParams({ type })
+      if (from) params.set('from', from)
+      if (to) params.set('to', to)
+      const res = await apiFetch(`/api/admin/report?${params.toString()}`)
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error || 'Report failed')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `BAS-${label}-${from || 'all'}_${to || 'time'}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast({ title: 'Report download হয়েছে ✓' })
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Report failed', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-end gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3">
+      <div className="space-y-1">
+        <Label className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">From date</Label>
+        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-36 bg-white text-xs" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">To date</Label>
+        <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 w-36 bg-white text-xs" />
+      </div>
+      <Button size="sm" disabled={busy} onClick={download} className="h-9 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+        <Download className="mr-1 h-4 w-4" /> {busy ? 'রেডি হচ্ছে...' : 'Report Download (CSV)'}
+      </Button>
+      <p className="w-full text-[10px] leading-relaxed text-emerald-800/70">
+        📅 দুই date-এর মধ্যের entry-গুলোর Excel রিপোর্ট নামবে — date ফাঁকা রাখলে সব সময়ের এন্ট্রি আসবে।
+      </p>
+    </div>
+  )
+}
+
 /* ---------------- request card ---------------- */
 
 interface GenericReq {
@@ -150,11 +206,13 @@ function RequestCard({
   rows,
   tab,
   onChanged,
+  onDelete,
 }: {
   req: GenericReq
   rows: { label: string; value: string }[]
   tab: string
   onChanged: () => void
+  onDelete?: (id: string) => void
 }) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
@@ -190,7 +248,14 @@ function RequestCard({
             by {req.user?.name || 'Unknown'} ({req.user?.email || '-'}) • {new Date(req.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
-        <StatusChip status={req.status} />
+        <div className="flex shrink-0 items-center gap-1">
+          <StatusChip status={req.status} />
+          {onDelete && (
+            <Button size="icon" variant="ghost" disabled={busy} onClick={() => onDelete(req.id)} aria-label="Delete this request" className="h-7 w-7 rounded-full text-red-500 hover:bg-red-50">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <button onClick={() => setOpen((o) => !o)} className="mt-2 flex w-full items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100">
@@ -527,6 +592,22 @@ function DonationsTab() {
     }
   }
 
+  const remove = async (id: string) => {
+    if (!confirm('এই donation entry টি পুরোপুরি মুছে ফেলবেন?\n\nফেরানো যাবে না!')) return
+    setBusyId(id)
+    try {
+      const res = await apiFetch(`/api/admin/donations?id=${id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error)
+      toast({ title: 'Entry মুছে ফেলা হয়েছে ✓' })
+      load()
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Delete failed', variant: 'destructive' })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   if (!items) return <Loading />
 
   return (
@@ -534,6 +615,7 @@ function DonationsTab() {
       <h2 className="mb-4 text-lg font-black text-stone-800">
         Donations <span className="ml-1 text-sm font-bold text-stone-400">({items.length})</span>
       </h2>
+      <ReportsBar type="donations" label="Donations" />
       {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-400">No donations yet</p>
       ) : (
@@ -571,6 +653,9 @@ function DonationsTab() {
                 )}
                 <Button size="sm" variant="ghost" onClick={() => setViewing(d)} className="rounded-lg text-blue-700 hover:bg-blue-50">
                   Receipt
+                </Button>
+                <Button size="sm" variant="ghost" disabled={busyId === d.id} onClick={() => remove(d.id)} aria-label="Delete this donation entry" className="rounded-lg text-red-600 hover:bg-red-50">
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
               {noteFor === d.id && (
@@ -613,6 +698,7 @@ function DonStatusChip({ status }: { status: string }) {
 /* ---------------- requests tab (generic) ---------------- */
 
 function RequestsTab({ tab, title }: { tab: string; title: string }) {
+  const { toast } = useToast()
   const [items, setItems] = useState<GenericReq[] | null>(null)
 
   const load = useCallback(() => {
@@ -622,6 +708,19 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
       .catch(() => setItems([]))
   }, [tab])
   useEffect(load, [load])
+
+  const removeOne = async (id: string) => {
+    if (!confirm('এই request টি পুরোপুরি মুছে ফেলবেন?\n\nফেরানো যাবে না!')) return
+    try {
+      const res = await apiFetch(`/api/admin/requests?tab=${tab}&id=${id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error)
+      toast({ title: 'Request মুছে ফেলা হয়েছে ✓' })
+      load()
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Delete failed', variant: 'destructive' })
+    }
+  }
 
   if (!items) return <Loading />
 
@@ -664,12 +763,13 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
       <h2 className="mb-4 text-lg font-black text-stone-800">
         {title} <span className="ml-1 text-sm font-bold text-stone-400">({items.length})</span>
       </h2>
+      <ReportsBar type={tab} label={title.replace(/\s+/g, '-')} />
       {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-400">No requests yet</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {items.map((r) => (
-            <RequestCard key={r.id} req={r} tab={tab} rows={rowsFor(r)} onChanged={load} />
+            <RequestCard key={r.id} req={r} tab={tab} rows={rowsFor(r)} onChanged={load} onDelete={removeOne} />
           ))}
         </div>
       )}
@@ -804,11 +904,40 @@ function CommitteeTab() {
   const [members, setMembers] = useState<MemberDto[] | null>(null)
   const [editing, setEditing] = useState<Partial<MemberDto> | null>(null)
   const [busy, setBusy] = useState(false)
+  const [hidePhones, setHidePhones] = useState(false)
+  const [phoneBusy, setPhoneBusy] = useState(false)
 
   const load = useCallback(() => {
     apiFetch('/api/admin/members').then((r) => r.json()).then((d) => setMembers(d.members || [])).catch(() => setMembers([]))
   }, [])
   useEffect(load, [load])
+
+  useEffect(() => {
+    apiFetch('/api/admin/settings')
+      .then((r) => r.json())
+      .then((d) => setHidePhones(d.settings?.hideCommitteePhone === '1'))
+      .catch(() => {})
+  }, [])
+
+  const togglePhones = async (v: boolean) => {
+    setPhoneBusy(true)
+    const prev = hidePhones
+    setHidePhones(v)
+    try {
+      const res = await apiFetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { hideCommitteePhone: v ? '1' : '0' } }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      toast({ title: v ? 'ফোন নম্বর লুকিয়ে দেওয়া হয়েছে ✓' : 'ফোন নম্বর দেখা যাবে ✓' })
+    } catch (err) {
+      setHidePhones(prev)
+      toast({ title: err instanceof Error ? err.message : 'Save failed', variant: 'destructive' })
+    } finally {
+      setPhoneBusy(false)
+    }
+  }
 
   const save = async () => {
     if (!editing) return
@@ -852,6 +981,16 @@ function CommitteeTab() {
         <Button size="sm" onClick={() => setEditing({ name: '', role: 'Member', phone: '', photoUrl: '', sortOrder: members.length + 1, active: true })} className="rounded-full bg-blue-900 text-white hover:bg-blue-800">
           <Users className="mr-1 h-4 w-4" /> Add Member
         </Button>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black text-stone-800">📞 ফোন নম্বর hide / unhide</p>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-stone-500">
+            চালু করলে user-রা কমিটি সদস্যদের ফোন নম্বর দেখতে পাবে না — শুধু নাম ও পদ দেখবে। আপনি এখানে সবসময় দেখতে পাবেন।
+          </p>
+        </div>
+        <Switch disabled={phoneBusy} checked={hidePhones} onCheckedChange={togglePhones} id="hide-phones" />
       </div>
 
       {editing && (
@@ -1370,6 +1509,9 @@ function GalleryTab() {
   const [caption, setCaption] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [busy, setBusy] = useState(false)
+  const multiRef = useRef<HTMLInputElement>(null)
+  const [multiBusy, setMultiBusy] = useState(false)
+  const [multiProgress, setMultiProgress] = useState('')
 
   const load = useCallback(() => {
     apiFetch('/api/admin/gallery').then((r) => r.json()).then((d) => setPhotos(d.photos || [])).catch(() => setPhotos([]))
@@ -1409,6 +1551,47 @@ function GalleryTab() {
     load()
   }
 
+  // bulk upload: same year + caption for every selected photo, one by one
+  const uploadMany = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    if (!/^\d{4}$/.test(year)) {
+      toast({ title: 'আগে সঠিক বছর (Year) লিখুন', variant: 'destructive' })
+      return
+    }
+    setMultiBusy(true)
+    let ok = 0
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setMultiProgress(`${i + 1}/${files.length}`)
+        const fd = new FormData()
+        fd.set('file', files[i])
+        const up = await apiFetch('/api/upload', { method: 'POST', body: fd })
+        const ud = await up.json()
+        if (!up.ok) throw new Error(ud.error || 'Upload failed')
+        const res = await apiFetch('/api/admin/gallery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ year, caption, imageUrl: ud.url }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error || 'Failed to save')
+        ok++
+      }
+      toast({ title: `${ok} টি ছবি যোগ হয়েছে ✓` })
+      setCaption('')
+      load()
+    } catch (err) {
+      toast({
+        title: `${ok} টি হয়েছে, এরপর ব্যর্থ — ${err instanceof Error ? err.message : 'error'}`,
+        variant: 'destructive',
+      })
+    } finally {
+      setMultiBusy(false)
+      setMultiProgress('')
+      if (multiRef.current) multiRef.current.value = ''
+    }
+  }
+
   if (!photos) return <Loading />
   return (
     <div>
@@ -1417,9 +1600,14 @@ function GalleryTab() {
         <Field label="Year *" value={year} onChange={(e) => setYear(e.target.value)} placeholder="2025" />
         <Field label="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="e.g. Annual Sports Day" />
         <ImageUpload label="Photo *" value={imageUrl} onChange={setImageUrl} />
-        <div className="sm:col-span-3">
+        <div className="sm:col-span-3 flex flex-wrap items-center gap-2">
           <Button disabled={busy} onClick={add} className="rounded-lg bg-blue-900 text-white hover:bg-blue-800"><ImagePlus className="mr-1 h-4 w-4" /> Add to Gallery</Button>
+          <Button type="button" disabled={multiBusy} onClick={() => multiRef.current?.click()} variant="outline" className="rounded-lg border-blue-300 text-blue-900 hover:bg-blue-100">
+            <ImageUp className="mr-1 h-4 w-4" /> {multiBusy ? `আপলোড হচ্ছে... (${multiProgress})` : 'একসাথে অনেকগুলো ছবি আপলোড'}
+          </Button>
+          <input ref={multiRef} type="file" accept="image/*" multiple onChange={uploadMany} className="hidden" aria-label="Upload multiple photos" />
         </div>
+        <p className="sm:col-span-3 text-[10px] text-stone-500">💡 একসাথে অনেক ছবি বাছলে সবগুলো একই Year (ও Caption) দিয়ে যোগ হবে।</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

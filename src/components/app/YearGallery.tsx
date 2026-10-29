@@ -31,12 +31,20 @@ function PhotoTile({ photo, onOpen }: { photo: GalleryPhotoDto; onOpen: () => vo
           </div>
         </motion.button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl p-2">
+      <DialogContent className="max-w-lg rounded-2xl p-2 sm:max-w-2xl">
         <DialogTitle className="sr-only">{photo.caption || 'Club memory'}</DialogTitle>
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-black">
-          <Image src={photo.imageUrl} alt={photo.caption || 'Club memory'} fill sizes="800px" className="object-contain" />
+        <div className="flex max-h-[78vh] w-full items-center justify-center overflow-hidden rounded-xl bg-stone-900">
+          <Image
+            src={photo.imageUrl}
+            alt={photo.caption || 'Club memory'}
+            width={1200}
+            height={1200}
+            sizes="(max-width: 640px) 92vw, 640px"
+            className="h-auto max-h-[78vh] w-auto max-w-full object-contain"
+            priority
+          />
         </div>
-        {photo.caption && <p className="py-2 text-center text-sm font-medium text-stone-700">{photo.caption}</p>}
+        {photo.caption && <p className="py-2.5 text-center text-sm font-bold text-stone-700">{photo.caption}</p>}
       </DialogContent>
     </Dialog>
   )
