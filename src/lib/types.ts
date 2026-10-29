@@ -126,8 +126,11 @@ export interface DrawingRequestDto {
   fatherName: string
   className: string
   schoolName: string
+  phone: string
+  fee: number
+  utr?: string | null
   docUrl: string
-  status: ReqStatus
+  status: ReqStatus | 'UNPAID'
   note?: string | null
   createdAt: string
 }

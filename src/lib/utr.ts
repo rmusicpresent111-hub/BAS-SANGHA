@@ -6,8 +6,8 @@ import type { Prisma } from '@prisma/client'
  *
  * A single real payment has exactly ONE UTR — so the same UTR must never be
  * accepted for two records, no matter which flow it was submitted through
- * (donation / member join / tournament). Every payment endpoint calls this
- * before accepting a new submission.
+ * (donation / member join / tournament / drawing entry). Every payment
+ * endpoint calls this before accepting a new submission.
  *
  * UTRs are ALWAYS compared uppercase — every write path must normalize with
  * .toUpperCase() before storing (see the pay/member/tournament routes).
@@ -22,9 +22,9 @@ type TxClient = Prisma.TransactionClient | typeof db
 export async function findUtrConflict(
   utr: string,
   client: TxClient = db,
-): Promise<'donation' | 'member' | 'tournament' | null> {
+): Promise<'donation' | 'member' | 'tournament' | 'drawing' | null> {
   const u = utr.toUpperCase()
-  const [donation, member, tournament] = await Promise.all([
+  const [donation, member, tournament, drawing] = await Promise.all([
     client.donation.findFirst({
       where: { utr: u, status: { in: ['SUBMITTED', 'VERIFIED'] } },
       select: { id: true },
@@ -37,10 +37,15 @@ export async function findUtrConflict(
       where: { utr: u, status: { in: ['WAITING', 'APPROVED'] } },
       select: { id: true },
     }),
+    client.drawingRequest.findFirst({
+      where: { utr: u, status: { in: ['WAITING', 'APPROVED'] } },
+      select: { id: true },
+    }),
   ])
   if (donation) return 'donation'
   if (member) return 'member'
   if (tournament) return 'tournament'
+  if (drawing) return 'drawing'
   return null
 }
 

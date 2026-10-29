@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
+import { ensureDrawingColumns } from '@/lib/drawing-migrate'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
       })
     }
     if (tab === 'drawing') {
+      await ensureDrawingColumns()
       const requests = await db.drawingRequest.findMany({ orderBy: { createdAt: 'desc' } })
       const users = await db.user.findMany({ where: { id: { in: requests.map((r) => r.userId) } } })
       const umap = new Map(users.map((u) => [u.id, { name: u.name, email: u.email }]))
@@ -91,6 +93,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ request: r })
     }
     if (tab === 'drawing') {
+      await ensureDrawingColumns()
       const r = await db.drawingRequest.update({ where: { id }, data: { status, ...(note !== undefined ? { note } : {}) } })
       return NextResponse.json({ request: r })
     }

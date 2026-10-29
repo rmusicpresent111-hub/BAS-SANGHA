@@ -73,11 +73,12 @@ type ReqStatus = 'WAITING' | 'APPROVED' | 'REJECTED'
 
 /* ---------------- shared small pieces ---------------- */
 
-function StatusChip({ status }: { status: ReqStatus }) {
-  const map: Record<ReqStatus, string> = {
+function StatusChip({ status }: { status: string }) {
+  const map: Record<string, string> = {
     WAITING: 'bg-amber-100 text-amber-800',
     APPROVED: 'bg-emerald-100 text-emerald-800',
     REJECTED: 'bg-red-100 text-red-800',
+    UNPAID: 'bg-stone-200 text-stone-600',
   }
   return <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${map[status]}`}>{status}</span>
 }
@@ -135,11 +136,29 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
   )
 }
 
-/** Date-range picker + CSV report download — shared by Donations & Requests tabs. */
-function ReportsBar({ type, label }: { type: string; label: string }) {
+/**
+ * Date-range picker + CSV report download — shared by Donations & Requests tabs.
+ * When `range`/`onRange` are provided the picker is controlled, so the SAME
+ * dates also filter the visible list (date-wise view) in the parent tab.
+ */
+function ReportsBar({
+  type,
+  label,
+  range,
+  onRange,
+}: {
+  type: string
+  label: string
+  range?: { from: string; to: string }
+  onRange?: (r: { from: string; to: string }) => void
+}) {
   const { toast } = useToast()
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  const [localFrom, setLocalFrom] = useState('')
+  const [localTo, setLocalTo] = useState('')
+  const from = range ? range.from : localFrom
+  const to = range ? range.to : localTo
+  const setFrom = (v: string) => (range ? onRange?.({ ...range, from: v }) : setLocalFrom(v))
+  const setTo = (v: string) => (range ? onRange?.({ ...range, to: v }) : setLocalTo(v))
   const [busy, setBusy] = useState(false)
 
   const download = async () => {
@@ -184,7 +203,7 @@ function ReportsBar({ type, label }: { type: string; label: string }) {
         <Download className="mr-1 h-4 w-4" /> {busy ? 'রেডি হচ্ছে...' : 'Report Download (CSV)'}
       </Button>
       <p className="w-full text-[10px] leading-relaxed text-emerald-800/70">
-        📅 দুই date-এর মধ্যের entry-গুলোর Excel রিপোর্ট নামবে — date ফাঁকা রাখলে সব সময়ের এন্ট্রি আসবে।
+        📅 Date দিলে নিচের লিস্টেও শুধু ওই দিনগুলোর entry দেখা যাবে এবং রিপোর্টও ওই date-এরই নামবে — ফাঁকা রাখলে সব দেখা যাবে।
       </p>
     </div>
   )
@@ -194,7 +213,7 @@ function ReportsBar({ type, label }: { type: string; label: string }) {
 
 interface GenericReq {
   id: string
-  status: ReqStatus
+  status: string // WAITING | APPROVED | REJECTED | UNPAID (drawing)
   note?: string | null
   createdAt: string
   user?: { name?: string; email?: string } | null
@@ -300,9 +319,12 @@ function RequestCard({
 
       {req.status !== 'APPROVED' && (
         <div className="mt-3 flex gap-2">
-          <Button disabled={busy} onClick={() => decide('APPROVED')} className="h-9 flex-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700">
-            <Check className="mr-1 h-4 w-4" /> Approve
-          </Button>
+          {/* UNPAID entries still need payment — approving them is not allowed */}
+          {req.status === 'WAITING' && (
+            <Button disabled={busy} onClick={() => decide('APPROVED')} className="h-9 flex-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700">
+              <Check className="mr-1 h-4 w-4" /> Approve
+            </Button>
+          )}
           {req.status !== 'REJECTED' && (
             <Button
               disabled={busy}
@@ -562,6 +584,7 @@ function DonationsTab() {
   const [noteFor, setNoteFor] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [range, setRange] = useState({ from: '', to: '' })
 
   const load = useCallback(() => {
     apiFetch('/api/admin/donations')
@@ -610,17 +633,33 @@ function DonationsTab() {
 
   if (!items) return <Loading />
 
+  // date-wise view: the same from/to dates that drive the CSV report also filter the visible cards
+  const filtered = items.filter((d) => {
+    if (!range.from && !range.to) return true
+    const dt = new Date(d.createdAt)
+    if (range.from && dt < new Date(`${range.from}T00:00:00`)) return false
+    if (range.to && dt > new Date(`${range.to}T23:59:59.999`)) return false
+    return true
+  })
+
   return (
     <div>
       <h2 className="mb-4 text-lg font-black text-stone-800">
-        Donations <span className="ml-1 text-sm font-bold text-stone-400">({items.length})</span>
+        Donations{' '}
+        <span className="ml-1 text-sm font-bold text-stone-400">
+          ({filtered.length}{(range.from || range.to) && filtered.length !== items.length ? ` / ${items.length}` : ''})
+        </span>
       </h2>
-      <ReportsBar type="donations" label="Donations" />
+      <ReportsBar type="donations" label="Donations" range={range} onRange={setRange} />
       {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-400">No donations yet</p>
+      ) : filtered.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-8 text-center text-sm font-semibold text-amber-700">
+          এই date-এ কোনো donation নেই — উপরের date বদলে দেখুন
+        </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {items.map((d) => (
+          {filtered.map((d) => (
             <div key={d.id} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -700,6 +739,7 @@ function DonStatusChip({ status }: { status: string }) {
 function RequestsTab({ tab, title }: { tab: string; title: string }) {
   const { toast } = useToast()
   const [items, setItems] = useState<GenericReq[] | null>(null)
+  const [range, setRange] = useState({ from: '', to: '' })
 
   const load = useCallback(() => {
     apiFetch(`/api/admin/requests?tab=${tab}`)
@@ -723,6 +763,15 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
   }
 
   if (!items) return <Loading />
+
+  // date-wise view: the same from/to dates that drive the CSV report also filter the visible cards
+  const filtered = items.filter((r) => {
+    if (!range.from && !range.to) return true
+    const d = new Date(r.createdAt)
+    if (range.from && d < new Date(`${range.from}T00:00:00`)) return false
+    if (range.to && d > new Date(`${range.to}T23:59:59.999`)) return false
+    return true
+  })
 
   const rowsFor = (r: GenericReq): { label: string; value: string }[] => {
     if (tab === 'member')
@@ -749,6 +798,9 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
         { label: "Father's Name", value: String(r.fatherName || '') },
         { label: 'Class', value: String(r.className || '') },
         { label: 'School', value: String(r.schoolName || '') },
+        { label: 'Mobile', value: String(r.phone || '') },
+        { label: 'Fee', value: formatINR(Number(r.fee || 0)) },
+        { label: 'UTR', value: String(r.utr || '—') },
         { label: 'Document', value: 'uploaded ✓' },
       ]
     return [
@@ -761,14 +813,21 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
   return (
     <div>
       <h2 className="mb-4 text-lg font-black text-stone-800">
-        {title} <span className="ml-1 text-sm font-bold text-stone-400">({items.length})</span>
+        {title}{' '}
+        <span className="ml-1 text-sm font-bold text-stone-400">
+          ({filtered.length}{(range.from || range.to) && filtered.length !== items.length ? ` / ${items.length}` : ''})
+        </span>
       </h2>
-      <ReportsBar type={tab} label={title.replace(/\s+/g, '-')} />
+      <ReportsBar type={tab} label={title.replace(/\s+/g, '-')} range={range} onRange={setRange} />
       {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-400">No requests yet</p>
+      ) : filtered.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-8 text-center text-sm font-semibold text-amber-700">
+          এই date-এ কোনো entry নেই — উপরের date বদলে দেখুন
+        </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {items.map((r) => (
+          {filtered.map((r) => (
             <RequestCard key={r.id} req={r} tab={tab} rows={rowsFor(r)} onChanged={load} onDelete={removeOne} />
           ))}
         </div>
@@ -1752,8 +1811,9 @@ function SettingsTab() {
         <p className="font-black">ℹ️ Info</p>
         <p className="mt-1">
           • UTR পেমেন্ট approve/reject করতে &ldquo;Member Requests&rdquo; বা &ldquo;Tournaments&rdquo; tab ব্যবহার করুন।<br />
-          • এখানে পরিবর্তন করলে সাথে সাথেই user side এ দেখা যাবে।<br />
-          • Drawing ও Blood Donation এর fee হয় না — সেগুলো শুধু registration।
+          • Drawing entry fee ₹30 (Events tab-এ DRAWING fee বদলালে সেটাই কাটবে) — user form জমিয়ে payment করবে, তারপর এখানে approve করবেন।<br />
+          • Blood Donation এ fee নেই — সেটা শুধু registration।<br />
+          • এখানে পরিবর্তন করলে সাথে সাথেই user side এ দেখা যাবে।
         </p>
       </div>
     </div>

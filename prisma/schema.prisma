@@ -134,8 +134,11 @@ model DrawingRequest {
   fatherName String
   className  String
   schoolName String
+  phone      String   @default("") // contact mobile number (new flow)
+  fee        Int      @default(0) // entry fee snapshot at submission (₹30 default)
+  utr        String? // UPI transaction ref — submitted after paying, before admin review
   docUrl     String
-  status     String   @default("WAITING")
+  status     String   @default("WAITING") // UNPAID (form done, awaiting payment) | WAITING (paid, awaiting admin) | APPROVED | REJECTED
   note       String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

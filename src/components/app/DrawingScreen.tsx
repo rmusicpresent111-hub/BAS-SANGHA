@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { CalendarDays, FileUp, MapPin, Palette, PartyPopper, Send, X } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { CalendarDays, FileUp, MapPin, Palette, PartyPopper, Phone, Send, Wallet, X } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { apiFetch, clearToken } from '@/lib/api'
 import { useCachedJson } from '@/lib/client-cache'
 import type { DrawingRequestDto, EventDto, HomeData } from '@/lib/types'
 import { ScreenHeader, Watermark, Loading, formatINR } from './common'
 import StatusCard from './StatusCard'
+import DrawingReceipt from './DrawingReceipt'
+import PaymentFlow from './PaymentFlow'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,10 +28,11 @@ export default function DrawingScreen() {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState({ name: '', fatherName: '', className: '', schoolName: '' })
+  const [payKey, setPayKey] = useState(0) // remount PaymentFlow for a fresh timer after expiry
+  const [form, setForm] = useState({ name: '', fatherName: '', className: '', schoolName: '', phone: '' })
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const loadStatus = useCallback(async () => {
+  const loadStatus = useCallback(async (): Promise<DrawingRequestDto | null> => {
     try {
       const res = await apiFetch('/api/drawing-request')
       if (res.status === 401) {
@@ -36,13 +40,15 @@ export default function DrawingScreen() {
         clearToken()
         setUser(null)
         setView('auth')
-        return
+        return null
       }
       const data = await res.json()
       setExisting(data.request || null)
       if (data.request && data.request.status !== 'REJECTED') setStep('status')
+      return data.request || null
     } catch {
       setExisting(null)
+      return null
     }
   }, [setView, setUser])
 
@@ -59,7 +65,20 @@ export default function DrawingScreen() {
     setEvent(ev || null)
   }, [home])
 
+  // release the preview blob when leaving the screen
+  useEffect(() => {
+    return () => {
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+    }
+  }, [])
+
   if (!user) return <Loading />
+
+  // server charges event fee when the admin set one, otherwise ₹30 — mirrored client-side for display
+  const displayFee = event?.fee && event.fee > 0 ? event.fee : 30
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -89,10 +108,15 @@ export default function DrawingScreen() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  /** STEP 1 — save the form (entry becomes UNPAID), then show the payment step. */
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim() || !form.fatherName.trim() || !form.className.trim() || !form.schoolName.trim()) {
       toast({ title: 'Please fill all fields', variant: 'destructive' })
+      return
+    }
+    if (!/^\d{10}$/.test(form.phone.trim())) {
+      toast({ title: 'Please enter a valid 10-digit mobile number', variant: 'destructive' })
       return
     }
     if (!file) {
@@ -106,18 +130,182 @@ export default function DrawingScreen() {
       fd.set('fatherName', form.fatherName)
       fd.set('className', form.className)
       fd.set('schoolName', form.schoolName)
+      fd.set('phone', form.phone)
       fd.set('doc', file)
       const res = await apiFetch('/api/drawing-request', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Submission failed')
       await loadStatus()
-      setStep('done')
-      toast({ title: 'Entry submitted successfully! 🎨' })
+      setStep('status')
+      toast({ title: 'Entry saved! এখন payment করুন 🎨' })
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : 'Submission failed', variant: 'destructive' })
     } finally {
       setSubmitting(false)
     }
+  }
+
+  /** STEP 2 — UTR submitted from the PaymentFlow; entry goes into the admin queue. */
+  const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await apiFetch('/api/drawing-request/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ utr }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { ok: false, error: data.error }
+      await loadStatus()
+      setStep('status')
+      toast({ title: 'Payment submitted! Admin approval-এর জন্য অপেক্ষা করুন ✓' })
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Something went wrong' }
+    }
+  }
+
+  /** Discard the UNPAID entry and go back to a blank form. */
+  const discardUnpaid = async () => {
+    try {
+      const res = await apiFetch('/api/drawing-request', { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error)
+      setExisting(null)
+      setStep('form')
+      toast({ title: 'Entry বাতিল হয়েছে — নতুন করে ফর্ম পূরণ করুন' })
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Failed', variant: 'destructive' })
+    }
+  }
+
+  /* ---------- status-dependent views ---------- */
+
+  const renderStatusView = (r: DrawingRequestDto) => {
+    if (r.status === 'UNPAID') {
+      return (
+        <div className="space-y-5">
+          <div className="rounded-3xl border border-amber-200 bg-gradient-to-b from-amber-50 via-white to-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-100">
+                <Wallet className="h-6 w-6 text-amber-600" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-base font-black text-stone-900">Form জমা হয়েছে ✓ — এবার Payment</h3>
+                <p className="text-xs font-medium text-stone-500">
+                  Entry fee {formatINR(r.fee || displayFee)} pay করে UTR number জমা দিলে আবেদন admin-এর কাছে যাবে।
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 rounded-2xl bg-stone-50 p-3.5">
+              {[
+                { label: 'Name', value: r.name },
+                { label: "Father's Name", value: r.fatherName },
+                { label: 'Class', value: r.className },
+                { label: 'School', value: r.schoolName },
+                { label: 'Mobile', value: r.phone },
+              ].map((d) => (
+                <div key={d.label} className="flex items-start justify-between gap-3 text-sm">
+                  <span className="shrink-0 text-stone-500">{d.label}</span>
+                  <span className="text-right font-semibold text-stone-800">{d.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <PaymentFlow
+            key={payKey}
+            title="Drawing Competition Entry Fee"
+            amount={r.fee || displayFee}
+            note={`Drawing Entry — ${r.name}`}
+            onSubmitUtr={submitUtr}
+            onExpiredRefill={() => setPayKey((k) => k + 1)}
+          />
+
+          <Button
+            variant="outline"
+            onClick={discardUnpaid}
+            className="w-full rounded-xl border-red-200 text-sm font-bold text-red-600 hover:bg-red-50"
+          >
+            <X className="mr-1.5 h-4 w-4" /> ফর্ম আবার পূরণ করতে চাই (entry বাতিল)
+          </Button>
+        </div>
+      )
+    }
+
+    if (r.status === 'APPROVED') {
+      return (
+        <div className="space-y-5">
+          {/* approval banner */}
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <div className="relative overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-b from-emerald-50 via-white to-white p-6 text-center shadow-lg">
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-lime-400 to-emerald-500" />
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 shadow-inner">
+                <PartyPopper className="h-8 w-8 text-emerald-600" />
+              </span>
+              <h2 className="mt-3 text-2xl font-black text-emerald-900">Approved! 🎉</h2>
+              <p className="mx-auto mt-1.5 max-w-sm text-sm font-medium leading-relaxed text-emerald-700">
+                {r.name}-এর Drawing Competition entry confirm হয়েছে — event দিন রঙ-ব্রাশ নিয়ে এসুন!
+              </p>
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600">
+                <Palette className="h-3.5 w-3.5" /> নিচে আপনার payment receipt — download বা share করতে পারবেন
+              </p>
+            </div>
+            {event?.eventDate || event?.venue ? (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {event?.eventDate && (
+                  <span className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-stone-700 ring-1 ring-stone-200">
+                    <CalendarDays className="h-3.5 w-3.5 text-amber-600" /> {event.eventDate}
+                  </span>
+                )}
+                {event?.venue && (
+                  <span className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-stone-700 ring-1 ring-stone-200">
+                    <MapPin className="h-3.5 w-3.5 text-red-500" /> {event.venue}
+                  </span>
+                )}
+              </div>
+            ) : null}
+          </motion.div>
+
+          {/* payment receipt — download + share */}
+          {r.utr && (
+            <DrawingReceipt
+              entry={{
+                id: r.id,
+                name: r.name,
+                fatherName: r.fatherName,
+                className: r.className,
+                schoolName: r.schoolName,
+                phone: r.phone,
+                fee: r.fee,
+                utr: r.utr,
+                status: r.status,
+                createdAt: r.createdAt,
+              }}
+            />
+          )}
+        </div>
+      )
+    }
+
+    // WAITING (paid, admin review) — classic status card
+    return (
+      <StatusCard
+        status="WAITING"
+        title="Drawing Competition"
+        details={[
+          { label: 'Name', value: r.name },
+          { label: "Father's Name", value: r.fatherName },
+          { label: 'Class', value: r.className },
+          { label: 'School', value: r.schoolName },
+          { label: 'Mobile', value: r.phone },
+          { label: 'Entry Fee Paid', value: formatINR(r.fee || 0) },
+          ...(r.utr ? [{ label: 'UTR Number', value: r.utr }] : []),
+          ...(event?.eventDate ? [{ label: 'Date', value: event.eventDate }] : []),
+          ...(event?.venue ? [{ label: 'Venue', value: event.venue }] : []),
+        ]}
+        note={r.note}
+      />
+    )
   }
 
   return (
@@ -144,20 +332,7 @@ export default function DrawingScreen() {
         {existing === undefined ? (
           <Loading />
         ) : step === 'status' && existing ? (
-          <StatusCard
-            status={existing.status}
-            title="Drawing Competition"
-            approvedLabel="Entry Confirmed — bring your colours on the event day!"
-            details={[
-              { label: 'Name', value: existing.name },
-              { label: "Father's Name", value: existing.fatherName },
-              { label: 'Class', value: existing.className },
-              { label: 'School', value: existing.schoolName },
-              ...(event?.eventDate ? [{ label: 'Date', value: event.eventDate }] : []),
-              ...(event?.venue ? [{ label: 'Venue', value: event.venue }] : []),
-            ]}
-            note={existing.note}
-          />
+          renderStatusView(existing)
         ) : step === 'done' ? (
           <div className="rounded-3xl border border-emerald-200 bg-white p-8 text-center shadow-lg">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
@@ -181,8 +356,8 @@ export default function DrawingScreen() {
                 <span className="flex items-center gap-1 rounded-full bg-white px-3 py-1 shadow-sm">
                   <MapPin className="h-3.5 w-3.5 text-red-500" /> {event.venue || 'Community Hall'}
                 </span>
-                <span className={`rounded-full px-3 py-1 shadow-sm ${event.fee > 0 ? 'bg-amber-600 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
-                  {event.fee > 0 ? `Entry Fee ${formatINR(event.fee)}` : 'Free Entry'}
+                <span className="rounded-full bg-amber-600 px-3 py-1 text-white shadow-sm">
+                  Entry Fee {formatINR(displayFee)}
                 </span>
               </div>
             )}
@@ -220,6 +395,23 @@ export default function DrawingScreen() {
                 </div>
               </div>
 
+              {/* mobile number — used for event updates + printed on the receipt */}
+              <div className="space-y-1.5">
+                <Label>Mobile Number *</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                  <Input
+                    value={form.phone}
+                    onChange={set('phone')}
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="10-digit mobile number"
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
               {/* document upload */}
               <div className="space-y-1.5">
                 <Label>Upload Aadhaar Card / Birth Certificate *</Label>
@@ -236,7 +428,7 @@ export default function DrawingScreen() {
                 ) : (
                   <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-3">
                     {preview ? (
-                       
+                      
                       <img src={preview} alt="Document preview" className="h-14 w-14 rounded-lg object-cover" />
                     ) : (
                       <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-red-50 text-[10px] font-black text-red-600">PDF</span>
@@ -254,8 +446,12 @@ export default function DrawingScreen() {
               </div>
             </div>
 
+            <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-center text-[11px] font-semibold leading-relaxed text-amber-900">
+              ℹ️ Submit করার পর {formatINR(displayFee)} entry fee pay করে UTR number জমা দিতে হবে — তারপর admin approval-এ যাবে।
+            </p>
+
             <Button type="submit" disabled={submitting} className="w-full rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 py-5 text-base font-bold text-white shadow-lg hover:from-amber-700 hover:to-amber-600">
-              <Send className="mr-1.5 h-5 w-5" /> {submitting ? 'Submitting...' : 'Submit Entry'}
+              <Send className="mr-1.5 h-5 w-5" /> {submitting ? 'Submitting...' : 'Submit & Continue to Payment'}
             </Button>
           </form>
         )}

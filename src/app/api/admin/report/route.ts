@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
+import { ensureDrawingColumns } from '@/lib/drawing-migrate'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -47,11 +48,12 @@ async function buildRows(type: ReportType, from: Date, to: Date) {
     return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.teamName, r.type, r.address, r.phone, r.fee, r.utr, r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
   }
   if (type === 'drawing') {
+    await ensureDrawingColumns()
     const rows = await db.drawingRequest.findMany({ where: range, orderBy: { createdAt: 'desc' } })
     const users = await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true, email: true } })
     const umap = new Map(users.map((u) => [u.id, u]))
-    const header = ['Date', 'Name', "Father's Name", 'Class', 'School', 'Status', 'Note', 'Account', 'Account Email']
-    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.name, r.fatherName, r.className, r.schoolName, r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
+    const header = ['Date', 'Name', "Father's Name", 'Class', 'School', 'Mobile', 'Fee (₹)', 'UTR', 'Status', 'Note', 'Account', 'Account Email']
+    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.name, r.fatherName, r.className, r.schoolName, r.phone || '—', r.fee || 0, r.utr || '—', r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
   }
   const rows = await db.bloodRequest.findMany({ where: range, orderBy: { createdAt: 'desc' } })
   const users = await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true, email: true } })
