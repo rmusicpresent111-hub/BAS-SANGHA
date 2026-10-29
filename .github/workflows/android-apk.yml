@@ -1,0 +1,94 @@
+# Builds the B.A.S Sangha Android APK completely in the cloud.
+#
+# No Android Studio / JDK / SDK needed on any computer:
+#   1. The APK is signed as a release build using the keystore stored in the
+#      repo secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+#      ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD).
+#   2. versionCode is auto-bumped to the GitHub run number, so every new APK
+#      installs directly over the previously installed one (no uninstall).
+#   3. The finished APK is attached to a GitHub Release:
+#      https://github.com/rmusicpresent111-hub/BAS-SANGHA/releases
+#      Anyone can download it from there — no login needed (public repo).
+#
+# Trigger: every push to main that touches android/** or this file,
+# plus a manual "Run workflow" button on the Actions tab.
+
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install web dependencies
+        run: bun install
+
+      - name: Sync Capacitor android project
+        run: bunx cap sync android
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          chmod +x gradlew
+          # auto-bump versionCode so updates always install over old versions
+          sed -i "s/versionCode [0-9]\+/versionCode ${GITHUB_RUN_NUMBER}/" app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${GITHUB_RUN_NUMBER}\"/" app/build.gradle
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/bas-sangha.keystore"
+            SIGNING_KEYSTORE_FILE="$GITHUB_WORKSPACE/bas-sangha.keystore" \
+              ./gradlew --no-daemon assembleRelease
+          else
+            echo "Keystore secret missing - falling back to debug APK"
+            ./gradlew --no-daemon assembleDebug
+          fi
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAS-Sangha-APK
+          path: android/app/build/outputs/apk/*/*.apk
+          if-no-files-found: error
+
+      - name: Publish APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK=$(ls android/app/build/outputs/apk/*/*.apk | head -1)
+          TAG="apk-v1.0-r${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" "$APK#BAS-Sangha-v1.0.${GITHUB_RUN_NUMBER}.apk" \
+            --title "B.A.S Sangha Android App (build ${GITHUB_RUN_NUMBER})" \
+            --notes "ডাউনলোড করে ইনস্টল করুন। পুরনো ভার্সনের উপরেই নতুন ভার্সন ইনস্টল হবে।" \
+            --latest
