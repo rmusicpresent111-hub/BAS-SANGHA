@@ -17,6 +17,7 @@ import { useCachedJson } from '@/lib/client-cache'
 import type { TournamentRequestDto, EventDto, HomeData } from '@/lib/types'
 import { ScreenHeader, Watermark, formatINR, Loading } from './common'
 import PaymentFlow from './PaymentFlow'
+import PaymentMethodChoice, { type PayMethod } from './PaymentMethodChoice'
 import StatusCard from './StatusCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +34,7 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
   const [existing, setExisting] = useState<TournamentRequestDto | null | undefined>(undefined)
   const [step, setStep] = useState<Step>('form')
   const [saving, setSaving] = useState(false)
+  const [payMethod, setPayMethod] = useState<PayMethod>('QR')
   const [form, setForm] = useState({ teamName: '', address: '', phone: '' })
 
   const isCricket = type === 'CRICKET'
@@ -74,43 +76,69 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const startPayment = (e: React.FormEvent) => {
-    e.preventDefault()
+  /** form validation shared by both paths (QR pay / cash submit) */
+  const validateForm = (): boolean => {
     if (!form.teamName.trim() || !form.address.trim()) {
       toast({ title: 'Please fill all fields', variant: 'destructive' })
-      return
+      return false
     }
     if (!/^\d{10}$/.test(form.phone.trim())) {
       toast({ title: 'Please enter a valid 10-digit phone number', variant: 'destructive' })
-      return
+      return false
     }
     // never enter the pay step before the real fee is known — otherwise the
     // UPI intent could be built with a wrong fallback amount
-    if (!feeLoaded) {
+    if (!feeLoaded && payMethod !== 'CASH') {
       toast({ title: 'Entry fee load হচ্ছে... একটু অপেক্ষা করুন', variant: 'destructive' })
+      return false
+    }
+    return true
+  }
+
+  const startPayment = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validateForm()) return
+    if (payMethod === 'CASH') {
+      // no online payment — submit straight into the admin verification queue
+      submitCash()
       return
     }
     setStep('pay')
   }
 
-  const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
+  const postRequest = async (payload: Record<string, unknown>): Promise<boolean> => {
     setSaving(true)
     try {
       const res = await apiFetch('/api/tournament-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, type, utr }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (!res.ok) return { ok: false, error: data.error }
+      if (!res.ok) {
+        toast({ title: data.error || 'Submission failed', variant: 'destructive' })
+        return false
+      }
       await loadStatus()
       toast({ title: 'Team registered successfully! 🏆' })
-      return { ok: true }
+      return true
     } catch {
-      return { ok: false, error: 'Something went wrong' }
+      toast({ title: 'Something went wrong', variant: 'destructive' })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  /** CASH path — no UTR, admin verifies the cash by hand */
+  const submitCash = async () => {
+    const ok = await postRequest({ ...form, type, paymentMethod: 'CASH' })
+    if (ok) setStep('status')
+  }
+
+  const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
+    const ok = await postRequest({ ...form, type, paymentMethod: 'QR', utr })
+    return ok ? { ok: true } : { ok: false, error: 'Submission failed' }
   }
 
   // server fallback (tournament-request route) is ₹500 — client must match,
@@ -153,11 +181,13 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
               { label: 'Team Name', value: existing.teamName },
               { label: 'Tournament', value: event?.title || title },
               { label: 'Date', value: event?.eventDate || 'To be announced' },
-              { label: 'Venue', value: event?.venue || 'Dekchin Gobindapur Ground' },
+              { label: 'Venue', value: event?.venue || 'Dakshin Gobindapur Ground' },
               { label: 'Address', value: existing.address },
               { label: 'Phone', value: existing.phone },
               { label: 'Entry Fee Paid', value: formatINR(existing.fee) },
-              { label: 'UTR Number', value: existing.utr },
+              ...(String(existing.paymentMethod || '').toUpperCase() === 'CASH'
+                ? [{ label: 'Payment', value: '💵 Cash (নগদ) — admin verification' }]
+                : [{ label: 'UTR Number', value: existing.utr }]),
             ]}
             note={existing.note}
           />
@@ -212,10 +242,27 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
                 </div>
               </div>
 
-              <Button type="submit" className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-5 text-base font-bold text-white shadow-lg hover:from-emerald-700 hover:to-emerald-600">
-                <ClipboardList className="mr-1.5 h-5 w-5" /> Payment Now — {formatINR(fee)}
+              {/* payment method — QR/UPI or Cash (same choice on every paid flow) */}
+              <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                <PaymentMethodChoice value={payMethod} onChange={setPayMethod} amountText={formatINR(fee)} />
+              </div>
+
+              <Button type="submit" disabled={saving} className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-5 text-base font-bold text-white shadow-lg hover:from-emerald-700 hover:to-emerald-600">
+                {payMethod === 'CASH' ? (
+                  <>
+                    <ClipboardList className="mr-1.5 h-5 w-5" /> Submit Registration (Cash)
+                  </>
+                ) : (
+                  <>
+                    <ClipboardList className="mr-1.5 h-5 w-5" /> Payment Now — {formatINR(fee)}
+                  </>
+                )}
               </Button>
-              <p className="text-center text-[11px] text-stone-400">Next step: UPI app (GPay / PhonePe) payment with 5 minute countdown</p>
+              <p className="text-center text-[11px] text-stone-400">
+                {payMethod === 'CASH'
+                  ? 'কমিটির হাতে নগদ টাকা দিন — admin টাকা পেয়ে verify করে approve করবে'
+                  : 'Next step: UPI app (GPay / PhonePe) payment with 5 minute countdown'}
+              </p>
             </form>
           </div>
         )}

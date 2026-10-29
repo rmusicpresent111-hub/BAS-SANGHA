@@ -75,7 +75,7 @@ export default function MemberIdCard({ name, phone, address, photoUrl, cardNumbe
             <div className="min-w-0 space-y-[0.5cqw]">
               <p className="text-[5.1cqw] font-black leading-[1.2] text-white [text-shadow:0_1px_3px_rgb(0_0_0/40%)]">ভোরের আলো সংঘ</p>
               <p className="text-[2.9cqw] font-bold uppercase leading-[1.3] tracking-[0.35em] text-amber-300">B.A.S Sangha</p>
-              <p className="text-[2.3cqw] leading-[1.2] text-blue-200">Dekchin Gobindapur • Estd 2021</p>
+              <p className="text-[2.3cqw] leading-[1.2] text-blue-200">Dakshin Gobindapur • Estd 2021</p>
             </div>
             <div aria-hidden className="ml-auto flex shrink-0 flex-col items-end gap-[1cqw] pr-[0.5cqw]">
               <span className="h-[1.4cqw] w-[1.4cqw] rounded-full bg-amber-300/80" />

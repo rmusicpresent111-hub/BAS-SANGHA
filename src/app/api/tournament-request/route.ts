@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
 import { findUtrConflict, UTR_TAKEN_MSG } from '@/lib/utr'
+import { ensurePaymentMethodColumns } from '@/lib/drawing-migrate'
 
 function validType(t: string) {
   return t === 'CRICKET' || t === 'FOOTBALL'
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** Submit tournament registration with UTR number. */
+/** Submit tournament registration — UTR number (QR pay) OR paymentMethod=CASH
+ *  (no UTR — admin verifies the cash by hand before approving). */
 export async function POST(req: NextRequest) {
   const session = await getUser(req)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -34,13 +36,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many attempts. Please try again after 10 minutes.' }, { status: 429 })
   if (Math.random() < 0.05) pruneRateLimits()
   try {
+    await ensurePaymentMethodColumns()
     const body = await req.json()
     // audit: hard length caps on free-text fields (DB abuse / spam control)
     const type = String(body.type || '')
     const teamName = String(body.teamName || '').trim().slice(0, 80)
     const address = String(body.address || '').trim().slice(0, 120)
     const phone = String(body.phone || '').trim().slice(0, 15)
-    const utr = String(body.utr || '').trim().slice(0, 30).toUpperCase()
+    const paymentMethod = String(body.paymentMethod || 'QR').trim().slice(0, 10).toUpperCase() === 'CASH' ? 'CASH' : 'QR'
+    const utr = paymentMethod === 'CASH' ? '' : String(body.utr || '').trim().slice(0, 30).toUpperCase()
 
     if (!validType(type))
       return NextResponse.json({ error: 'Invalid tournament type' }, { status: 400 })
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     if (!/^\d{10}$/.test(phone))
       return NextResponse.json({ error: 'Please enter a valid 10-digit phone number' }, { status: 400 })
-    if (!/^[A-Za-z0-9]{10,22}$/.test(utr))
+    if (paymentMethod !== 'CASH' && !/^[A-Za-z0-9]{10,22}$/.test(utr))
       return NextResponse.json({ error: 'Please enter a valid UTR number (10-22 characters)' }, { status: 400 })
 
     const existing = await db.tournamentRequest.findFirst({
@@ -62,15 +66,18 @@ export async function POST(req: NextRequest) {
       )
 
     // block UTR reuse: the same payment proof must never be accepted twice
-    // (checked across donations, member join AND tournament submissions)
-    const utrReuse = await db.tournamentRequest.findFirst({
-      where: { type, utr, status: { in: ['WAITING', 'APPROVED'] } },
-      select: { id: true, userId: true },
-    })
-    if (utrReuse && utrReuse.userId !== session.uid)
-      return NextResponse.json({ error: UTR_TAKEN_MSG }, { status: 409 })
-    if (await findUtrConflict(utr))
-      return NextResponse.json({ error: UTR_TAKEN_MSG }, { status: 409 })
+    // (checked across donations, member join AND tournament submissions).
+    // Cash has no UTR — skipped entirely.
+    if (paymentMethod !== 'CASH') {
+      const utrReuse = await db.tournamentRequest.findFirst({
+        where: { type, utr, status: { in: ['WAITING', 'APPROVED'] } },
+        select: { id: true, userId: true },
+      })
+      if (utrReuse && utrReuse.userId !== session.uid)
+        return NextResponse.json({ error: UTR_TAKEN_MSG }, { status: 409 })
+      if (await findUtrConflict(utr))
+        return NextResponse.json({ error: UTR_TAKEN_MSG }, { status: 409 })
+    }
 
     const event = await db.event.findUnique({ where: { type } })
     const fee = event?.fee ?? 500
@@ -83,9 +90,9 @@ export async function POST(req: NextRequest) {
         select: { id: true },
       })
       if (dup) return null
-      if (await findUtrConflict(utr, tx)) return null
+      if (paymentMethod !== 'CASH' && (await findUtrConflict(utr, tx))) return null
       return tx.tournamentRequest.create({
-        data: { userId: session.uid, type, teamName, address, phone, fee, utr, status: 'WAITING' },
+        data: { userId: session.uid, type, teamName, address, phone, fee, utr, paymentMethod, status: 'WAITING' },
       })
     })
     if (!request)

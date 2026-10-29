@@ -14,7 +14,14 @@ export default function PujoHighlight({ highlight }: { highlight: PujoHighlightD
   const { setDonationOpen } = useApp()
   const [details, setDetails] = useState(false)
 
-  if (!highlight) return null
+  // পুজো ব্যানার না থাকলেও "পরিচালনায়" ক্রেডিট লাইনটা দেখা যাবে
+  if (!highlight) {
+    return (
+      <p className="mx-auto mt-5 w-fit rounded-full border border-amber-200 bg-white/80 px-4 py-1 text-center text-[10px] font-bold text-amber-800 shadow-sm sm:text-[11px]">
+        🪔 পরিচালনায় — ভোরের আলো শ্যামা সংঘ
+      </p>
+    )
+  }
 
   return (
     <>
@@ -97,6 +104,11 @@ export default function PujoHighlight({ highlight }: { highlight: PujoHighlightD
         </div>
       </motion.section>
 
+      {/* managed-by credit line — right under the শ্রী শ্রী শ্যামা পুজা banner */}
+      <p className="mx-auto mt-2 w-fit rounded-full border border-amber-200 bg-white/80 px-4 py-1 text-center text-[10px] font-bold text-amber-800 shadow-sm sm:text-[11px]">
+        🪔 পরিচালনায় — ভোরের আলো শ্যামা সংঘ
+      </p>
+
       {/* details dialog */}
       <Dialog open={details} onOpenChange={setDetails}>
         <DialogContent className="max-w-sm rounded-3xl border-2 border-amber-200 bg-white p-0 sm:max-w-md">
@@ -118,6 +130,7 @@ export default function PujoHighlight({ highlight }: { highlight: PujoHighlightD
           <div className="px-5 pb-5 pt-4">
             <h3 className="text-center text-lg font-black text-red-800">{highlight.title}</h3>
             {highlight.subtitle && <p className="mt-0.5 text-center text-xs font-medium text-stone-500">{highlight.subtitle}</p>}
+            <p className="mt-1 text-center text-[10px] font-bold text-amber-700">পরিচালনায় — ভোরের আলো শ্যামা সংঘ</p>
             <div className="mt-3 flex items-center justify-center gap-4 text-xs font-semibold text-stone-700">
               {highlight.location && (
                 <span className="flex items-center gap-1">

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
-import { BadgeCheck, CalendarDays, Download, GraduationCap, IndianRupee, Loader2, Palette, Phone, Share2, User, Users } from 'lucide-react'
+import { BadgeCheck, CalendarDays, Download, GraduationCap, IndianRupee, Loader2, Palette, Phone, Share2, User, Users, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { formatINR } from './common'
@@ -16,6 +16,7 @@ export interface DrawingReceiptData {
   phone: string
   fee: number
   utr?: string | null
+  paymentMethod?: string | null // QR (UPI online) | CASH
   status: string // UNPAID | WAITING | APPROVED | REJECTED
   createdAt: string
 }
@@ -39,6 +40,7 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
   const [sharing, setSharing] = useState(false)
 
   const status = STATUS_MAP[entry.status] || STATUS_MAP.WAITING
+  const isCash = String(entry.paymentMethod || '').toUpperCase() === 'CASH'
   const date = new Date(entry.createdAt).toLocaleString('en-IN', {
     day: 'numeric',
     month: 'short',
@@ -54,9 +56,9 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
     `Entry Fee: ₹${entry.fee.toLocaleString('en-IN')} (${status.label})`,
     `Mobile: ${entry.phone}`,
     `Entry ID: ${shortId}`,
-    entry.utr ? `UTR: ${entry.utr}` : '',
+    isCash ? 'Payment: CASH (নগদ টাকা)' : entry.utr ? `UTR: ${entry.utr}` : '',
     `Date: ${date}`,
-    'Dekchin Gobindapur • Estd 2021',
+    'Dakshin Gobindapur • Estd 2021',
   ]
     .filter(Boolean)
     .join('\n')
@@ -169,7 +171,11 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
           <Row icon={GraduationCap} label="Class & School" value={`${entry.className} • ${entry.schoolName}`} />
           <Row icon={Phone} label="Mobile" value={entry.phone} />
           <Row icon={BadgeCheck} label="Entry ID" value={shortId} mono />
-          {entry.utr ? <Row icon={BadgeCheck} label="UPI Transaction ID (UTR)" value={entry.utr} mono /> : null}
+          {isCash ? (
+            <Row icon={Wallet} label="Payment Method" value="Cash (নগদ টাকা)" />
+          ) : entry.utr ? (
+            <Row icon={BadgeCheck} label="UPI Transaction ID (UTR)" value={entry.utr} mono />
+          ) : null}
           <Row icon={CalendarDays} label="Date & Time" value={date} />
         </div>
 
@@ -178,7 +184,7 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
           <p className="text-[2.5cqw] font-semibold leading-relaxed text-stone-500">
             ধন্যবাদ! অংশগ্রহণের জন্য — event দিন রঙ-ব্রাশ নিয়ে আসুন 🎨
           </p>
-          <p className="mt-[1cqw] text-[2.2cqw] text-stone-400">Dekchin Gobindapur • Estd 2021 • computer generated receipt</p>
+          <p className="mt-[1cqw] text-[2.2cqw] text-stone-400">Dakshin Gobindapur • Estd 2021 • computer generated receipt</p>
         </div>
       </div>
 

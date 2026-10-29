@@ -32,6 +32,7 @@ import { useApp } from '@/lib/store'
 import { apiFetch } from '@/lib/api'
 import { formatINR } from './common'
 import DonationReceipt, { type DonationReceiptData } from './DonationReceipt'
+import PaymentMethodChoice, { type PayMethod } from './PaymentMethodChoice'
 
 const PRESETS = [51, 101, 251, 501, 1001]
 const AMOUNT_MIN = 10
@@ -53,6 +54,7 @@ export default function DonationDialog() {
   const [amount, setAmount] = useState<number | null>(null)
   const [custom, setCustom] = useState('')
   const [phone, setPhone] = useState('')
+  const [payMethod, setPayMethod] = useState<PayMethod>('QR')
   const [creating, setCreating] = useState(false)
   const [order, setOrder] = useState<OrderResponse | null>(null)
   const [receipt, setReceipt] = useState<DonationReceiptData | null>(null)
@@ -106,6 +108,7 @@ export default function DonationDialog() {
     setUtr('')
     setOrder(null)
     setReceipt(null)
+    setPayMethod('QR')
     setReturnPrompt(false)
     setQrOpen(false)
     wentToUpi.current = false
@@ -116,7 +119,9 @@ export default function DonationDialog() {
     if (!v) reset()
   }
 
-  /** create a server-side order, then jump into the UPI app (mobile) */
+  /** create a server-side order, then jump into the UPI app (mobile).
+   *  CASH orders skip the payment app entirely — the receipt shows
+   *  "under verification" until the admin confirms the cash. */
   const startPayment = async () => {
     if (!amountValid || creating) return
     setCreating(true)
@@ -124,11 +129,18 @@ export default function DonationDialog() {
       const res = await apiFetch('/api/donation/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: chosen, phone: phone.replace(/\D/g, '') }),
+        body: JSON.stringify({ amount: chosen, phone: phone.replace(/\D/g, ''), paymentMethod: payMethod }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Order failed')
       setOrder(data)
+      if (payMethod === 'CASH') {
+        setReceipt({ ...data.donation, utr: null })
+        setStep('receipt')
+        toast({ title: 'Cash donation জমা হয়েছে ✓', description: 'Admin টাকা পেয়ে verify করলে status update হবে' })
+        loadHistory()
+        return
+      }
       setStep('pay')
       // deep-link into the user's UPI app (GPay / PhonePe / Paytm) — only on mobile
       if (/android|iphone|ipad|ipod/i.test(navigator.userAgent)) {
@@ -185,7 +197,7 @@ export default function DonationDialog() {
               <HandCoins className="h-5 w-5" /> Donate Now
             </DialogTitle>
             <DialogDescription className="text-xs font-medium text-amber-100">
-              মায়ের পুজো ও সমাজসেবায় সাহায্য করুন — GPay / PhonePe / Paytm
+              মায়ের পুজো ও সমাজসেবায় সাহায্য করুন — QR / UPI অথবা Cash
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -248,6 +260,11 @@ export default function DonationDialog() {
               />
             </div>
 
+            {/* payment method — QR/UPI or Cash (same choice on every paid flow) */}
+            <div className="mt-4">
+              <PaymentMethodChoice value={payMethod} onChange={setPayMethod} amountText={chosen ? formatINR(chosen) : undefined} />
+            </div>
+
             <Button
               disabled={!amountValid || creating}
               onClick={startPayment}
@@ -256,6 +273,10 @@ export default function DonationDialog() {
               {creating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating order...
+                </>
+              ) : payMethod === 'CASH' ? (
+                <>
+                  Submit Cash Donation {chosen ? `— ${formatINR(chosen)}` : ''} <ArrowRight className="ml-1.5 h-4 w-4" />
                 </>
               ) : (
                 <>

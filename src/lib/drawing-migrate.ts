@@ -33,3 +33,31 @@ export async function ensureDrawingColumns(): Promise<void> {
     console.error('ensureDrawingColumns failed (will retry)', e)
   }
 }
+
+let payDone = false
+
+/**
+ * Runtime schema guard for the paymentMethod columns (QR | CASH) on every
+ * fee-bearing table. Same trick as ensureDrawingColumns: the production Turso
+ * DB predates the column, so each server instance adds the (idempotent)
+ * ALTER TABLEs once on the first payment-related request. Safe to run
+ * concurrently and re-run.
+ */
+export async function ensurePaymentMethodColumns(): Promise<void> {
+  if (payDone) return
+  try {
+    const tables = ['Donation', 'MemberRequest', 'TournamentRequest', 'DrawingRequest']
+    for (const t of tables) {
+      const cols = (await db.$queryRawUnsafe<{ name: string }[]>(
+        `PRAGMA table_info("${t}")`
+      )) as { name: string }[]
+      const names = new Set((cols || []).map((c) => c.name))
+      if (!names.has('paymentMethod'))
+        await db.$executeRawUnsafe(`ALTER TABLE "${t}" ADD COLUMN "paymentMethod" TEXT NOT NULL DEFAULT 'QR'`)
+    }
+    payDone = true
+  } catch (e) {
+    // never cache a failure — the next request retries (e.g. cold-start race)
+    console.error('ensurePaymentMethodColumns failed (will retry)', e)
+  }
+}

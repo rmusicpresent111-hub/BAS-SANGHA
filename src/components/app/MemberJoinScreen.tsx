@@ -9,6 +9,7 @@ import { useCachedJson } from '@/lib/client-cache'
 import type { HomeData, MemberRequestDto } from '@/lib/types'
 import { ScreenHeader, formatINR, Loading } from './common'
 import PaymentFlow from './PaymentFlow'
+import PaymentMethodChoice, { type PayMethod } from './PaymentMethodChoice'
 import StatusCard from './StatusCard'
 import MemberIdCard from './MemberIdCard'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ export default function MemberJoinScreen() {
   const [step, setStep] = useState<Step>('form')
   const [fee, setFee] = useState(1500)
   const [saving, setSaving] = useState(false)
+  const [payMethod, setPayMethod] = useState<PayMethod>('QR')
   const [form, setForm] = useState({ name: '', address: '', phone: '' })
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -103,48 +105,81 @@ export default function MemberJoinScreen() {
     setPhotoPreview(null)
   }
 
-  const startPayment = (e: React.FormEvent) => {
-    e.preventDefault()
+  /** form validation shared by both paths (QR pay / cash submit) */
+  const validateForm = (): boolean => {
     if (!form.name.trim() || !form.address.trim()) {
       toast({ title: 'Please fill all fields', variant: 'destructive' })
-      return
+      return false
     }
     if (!/^\d{10}$/.test(form.phone.trim())) {
       toast({ title: 'Please enter a valid 10-digit phone number', variant: 'destructive' })
-      return
+      return false
     }
     if (!photo) {
       toast({ title: 'Please upload your photo — it will be printed on your ID card', variant: 'destructive' })
+      return false
+    }
+    return true
+  }
+
+  const startPayment = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validateForm()) return
+    if (payMethod === 'CASH') {
+      // no online payment — submit straight into the admin verification queue
+      submitCash()
       return
     }
     setStep('pay')
   }
 
-  const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
+  /** shared POST body builder (photo included) for both QR and cash submits */
+  const buildFd = (utr: string): FormData => {
+    const fd = new FormData()
+    fd.set('name', form.name)
+    fd.set('address', form.address)
+    fd.set('phone', form.phone)
+    fd.set('paymentMethod', utr ? 'QR' : 'CASH')
+    if (utr) fd.set('utr', utr)
+    if (photo) fd.set('photo', photo)
+    return fd
+  }
+
+  const postRequest = async (fd: FormData): Promise<boolean> => {
     setSaving(true)
     try {
-      const fd = new FormData()
-      fd.set('name', form.name)
-      fd.set('address', form.address)
-      fd.set('phone', form.phone)
-      fd.set('utr', utr)
-      if (photo) fd.set('photo', photo)
       const res = await apiFetch('/api/member-request', { method: 'POST', body: fd })
       const data = await res.json()
-      if (!res.ok) return { ok: false, error: data.error }
+      if (!res.ok) {
+        toast({ title: data.error || 'Submission failed', variant: 'destructive' })
+        return false
+      }
       await loadStatus()
       toast({ title: 'Application submitted successfully! 🎉' })
-      return { ok: true }
+      return true
     } catch {
-      return { ok: false, error: 'Something went wrong' }
+      toast({ title: 'Something went wrong', variant: 'destructive' })
+      return false
     } finally {
       setSaving(false)
     }
   }
 
+  /** CASH path — no UTR, admin verifies the cash by hand */
+  const submitCash = async () => {
+    const ok = await postRequest(buildFd(''))
+    if (!ok) return
+    setStep('status')
+  }
+
+  const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
+    const ok = await postRequest(buildFd(utr))
+    return ok ? { ok: true } : { ok: false, error: 'Submission failed' }
+  }
+
   return (
     <div className="bg-club flex min-h-dvh flex-col">
-      <ScreenHeader title="Member Join" subtitle="Dekchin Gobindapur B.A.S Sangha" onBack={() => setView('home')} accent="blue" />
+      <ScreenHeader title="Member Join" subtitle="Dakshin Gobindapur B.A.S Sangha" onBack={() => setView('home')} accent="blue" />
 
       <main className="relative mx-auto w-full max-w-2xl flex-1 px-4 py-5">
         {existing === undefined ? (
@@ -203,7 +238,9 @@ export default function MemberJoinScreen() {
                 { label: 'Village', value: existing.address },
                 { label: 'Phone', value: existing.phone },
                 { label: 'Fee Paid', value: formatINR(existing.fee) },
-                { label: 'UTR Number', value: existing.utr },
+                ...(String(existing.paymentMethod || '').toUpperCase() === 'CASH'
+                  ? [{ label: 'Payment', value: '💵 Cash (নগদ) — admin verification' }]
+                  : [{ label: 'UTR Number', value: existing.utr }]),
               ]}
               note={existing.note}
               onReapply={existing.status === 'REJECTED' ? () => setStep('form') : undefined}
@@ -303,10 +340,19 @@ export default function MemberJoinScreen() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-5 text-base font-bold text-white shadow-lg hover:from-emerald-700 hover:to-emerald-600">
-              Continue to Payment — {formatINR(fee)}
+            {/* payment method — QR/UPI or Cash (same choice on every paid flow) */}
+            <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <PaymentMethodChoice value={payMethod} onChange={setPayMethod} amountText={formatINR(fee)} />
+            </div>
+
+            <Button type="submit" disabled={saving} className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-5 text-base font-bold text-white shadow-lg hover:from-emerald-700 hover:to-emerald-600">
+              {payMethod === 'CASH' ? 'Submit Application (Cash)' : `Continue to Payment — ${formatINR(fee)}`}
             </Button>
-            <p className="text-center text-[11px] text-stone-400">Next step: UPI app দিয়ে {formatINR(fee)} payment করে UTR number submit করুন</p>
+            <p className="text-center text-[11px] text-stone-400">
+              {payMethod === 'CASH'
+                ? 'কমিটির হাতে নগদ টাকা দিন — admin টাকা পেয়ে verify করে approve করবে'
+                : `Next step: UPI app দিয়ে ${formatINR(fee)} payment করে UTR number submit করুন`}
+            </p>
           </form>
         )}
       </main>

@@ -14,11 +14,13 @@ import {
   ClipboardList,
   Download,
   Droplet,
+  FileBarChart,
   HandCoins,
   ImagePlus,
   ImageUp,
   LayoutDashboard,
   LayoutGrid,
+  Loader2,
   LogOut,
   Palette,
   Pencil,
@@ -31,11 +33,14 @@ import {
   Upload,
   Users,
   Volleyball,
+  Wallet,
   X,
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { apiFetch, clearToken } from '@/lib/api'
+import { downloadNodeAsPdf } from '@/lib/pdf-report'
 import type { BannerDto, MemberDto, EventDto, GalleryPhotoDto, DrawingRequestDto, QuickActionDto, NoticeDto, PujoHighlightDto } from '@/lib/types'
+import type { SummaryService } from '@/app/api/admin/report/summary/route'
 import { Loading, formatINR } from './common'
 import DonationReceipt, { type DonationReceiptData } from './DonationReceipt'
 import { Button } from '@/components/ui/button'
@@ -59,6 +64,7 @@ type Tab =
   | 'drawing'
   | 'blood'
   | 'donations'
+  | 'reports'
   | 'banners'
   | 'committee'
   | 'events'
@@ -214,11 +220,15 @@ function ReportsBar({
 interface GenericReq {
   id: string
   status: string // WAITING | APPROVED | REJECTED | UNPAID (drawing)
+  paymentMethod?: string | null // QR (UPI online) | CASH
   note?: string | null
   createdAt: string
   user?: { name?: string; email?: string } | null
   [k: string]: unknown
 }
+
+/** true when the record was paid in cash (no UTR — admin confirms by hand) */
+const isCashReq = (r: GenericReq) => String(r.paymentMethod || '').toUpperCase() === 'CASH'
 
 function RequestCard({
   req,
@@ -268,6 +278,11 @@ function RequestCard({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {isCashReq(req) && (
+            <span className="flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800" title="Cash payment — admin confirms by hand">
+              <Wallet className="h-3 w-3" /> CASH
+            </span>
+          )}
           <StatusChip status={req.status} />
           {onDelete && (
             <Button size="icon" variant="ghost" disabled={busy} onClick={() => onDelete(req.id)} aria-label="Delete this request" className="h-7 w-7 rounded-full text-red-500 hover:bg-red-50">
@@ -322,7 +337,7 @@ function RequestCard({
           {/* UNPAID entries still need payment — approving them is not allowed */}
           {req.status === 'WAITING' && (
             <Button disabled={busy} onClick={() => decide('APPROVED')} className="h-9 flex-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700">
-              <Check className="mr-1 h-4 w-4" /> Approve
+              <Check className="mr-1 h-4 w-4" /> {isCashReq(req) ? 'Cash পেয়েছি — Approve' : 'Approve'}
             </Button>
           )}
           {req.status !== 'REJECTED' && (
@@ -336,6 +351,11 @@ function RequestCard({
             </Button>
           )}
         </div>
+      )}
+      {req.status === 'WAITING' && isCashReq(req) && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[10px] font-semibold text-amber-800">
+          💵 এই entry-টি Cash (নগদ) — টাকা হাতে পেয়ে Approve চাপুন। UTR থাকবে না।
+        </p>
       )}
       {req.status === 'APPROVED' && (
         <Button disabled={busy} onClick={() => decide('WAITING')} variant="outline" className="mt-3 h-9 w-full rounded-lg text-xs font-bold text-stone-600">
@@ -358,6 +378,7 @@ const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
   { key: 'tournament', label: 'Tournaments', icon: Trophy },
   { key: 'drawing', label: 'Drawing Entries', icon: Palette },
   { key: 'blood', label: 'Blood Donors', icon: Droplet },
+  { key: 'reports', label: 'Reports', icon: FileBarChart },
   { key: 'banners', label: 'Banners', icon: ImageUp },
   { key: 'committee', label: 'Committee', icon: Users },
   { key: 'events', label: 'Events', icon: CalendarDays },
@@ -445,6 +466,7 @@ export default function AdminScreen() {
         {tab === 'tournament' && <RequestsTab tab="tournament" title="Tournament Registrations" />}
         {tab === 'drawing' && <RequestsTab tab="drawing" title="Drawing Competition Entries" />}
         {tab === 'blood' && <RequestsTab tab="blood" title="Blood Donation Pledges" />}
+        {tab === 'reports' && <ReportsTab />}
         {tab === 'banners' && <BannersTab />}
         {tab === 'committee' && <CommitteeTab />}
         {tab === 'events' && <EventsTab />}
@@ -577,6 +599,8 @@ interface DonationRow extends DonationReceiptData {
   user?: { name?: string; email?: string } | null
 }
 
+const isCashDonation = (d: DonationRow) => String(d.paymentMethod || '').toUpperCase() === 'CASH'
+
 function DonationsTab() {
   const { toast } = useToast()
   const [items, setItems] = useState<DonationRow[] | null>(null)
@@ -671,18 +695,29 @@ function DonationsTab() {
                     {new Date(d.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                <DonStatusChip status={d.status} />
+                <div className="flex shrink-0 items-center gap-1">
+                  {isCashDonation(d) && (
+                    <span className="flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">
+                      <Wallet className="h-3 w-3" /> CASH
+                    </span>
+                  )}
+                  <DonStatusChip status={d.status} />
+                </div>
               </div>
               <div className="mt-3 space-y-1 rounded-xl bg-stone-50 p-3 text-[11px]">
                 <p className="flex justify-between gap-2"><span className="text-stone-400">Order ID</span><span className="font-mono font-bold text-stone-700">{d.orderId}</span></p>
-                <p className="flex justify-between gap-2"><span className="text-stone-400">UTR</span><span className="font-mono font-bold text-stone-700">{d.utr || '—'}</span></p>
+                {isCashDonation(d) ? (
+                  <p className="flex justify-between gap-2"><span className="text-stone-400">Payment</span><span className="font-bold text-amber-700">💵 Cash (নগদ) — admin verify</span></p>
+                ) : (
+                  <p className="flex justify-between gap-2"><span className="text-stone-400">UTR</span><span className="font-mono font-bold text-stone-700">{d.utr || '—'}</span></p>
+                )}
                 <p className="flex justify-between gap-2"><span className="text-stone-400">Phone</span><span className="font-bold text-stone-700">{d.payerPhone || '—'}</span></p>
                 {d.note && <p className="flex justify-between gap-2"><span className="text-stone-400">Note</span><span className="text-right font-semibold text-stone-600">{d.note}</span></p>}
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {d.status !== 'VERIFIED' && (
                   <Button size="sm" disabled={busyId === d.id} onClick={() => decide(d.id, 'VERIFIED')} className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
-                    <Check className="mr-1 h-3.5 w-3.5" /> Verify
+                    <Check className="mr-1 h-3.5 w-3.5" /> {isCashDonation(d) ? 'Cash পেয়েছি — Verify' : 'Verify'}
                   </Button>
                 )}
                 {d.status !== 'REJECTED' && (
@@ -780,7 +815,12 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
         { label: 'Village', value: String(r.address || '') },
         { label: 'Phone', value: String(r.phone || '') },
         { label: 'Fee', value: formatINR(Number(r.fee || 0)) },
-        { label: 'UTR', value: String(r.utr || '') },
+        ...(isCashReq(r)
+          ? [{ label: 'Payment', value: '💵 Cash (নগদ)' }]
+          : [
+            { label: 'Payment', value: 'QR / UPI' },
+            { label: 'UTR', value: String(r.utr || '') },
+          ]),
         { label: 'Member ID', value: r.cardNumber ? String(r.cardNumber) : '— (auto on approve)' },
       ]
     if (tab === 'tournament')
@@ -790,7 +830,12 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
         { label: 'Address', value: String(r.address || '') },
         { label: 'Phone', value: String(r.phone || '') },
         { label: 'Fee', value: formatINR(Number(r.fee || 0)) },
-        { label: 'UTR', value: String(r.utr || '') },
+        ...(isCashReq(r)
+          ? [{ label: 'Payment', value: '💵 Cash (নগদ)' }]
+          : [
+            { label: 'Payment', value: 'QR / UPI' },
+            { label: 'UTR', value: String(r.utr || '') },
+          ]),
       ]
     if (tab === 'drawing')
       return [
@@ -800,7 +845,12 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
         { label: 'School', value: String(r.schoolName || '') },
         { label: 'Mobile', value: String(r.phone || '') },
         { label: 'Fee', value: formatINR(Number(r.fee || 0)) },
-        { label: 'UTR', value: String(r.utr || '—') },
+        ...(isCashReq(r)
+          ? [{ label: 'Payment', value: '💵 Cash (নগদ)' }]
+          : [
+            { label: 'Payment', value: 'QR / UPI' },
+            { label: 'UTR', value: String(r.utr || '—') },
+          ]),
         { label: 'Document', value: 'uploaded ✓' },
       ]
     return [
@@ -832,6 +882,275 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/* ---------------- reports tab (all-service cash/online money report + PDF) ---------------- */
+
+interface ReportSummary {
+  from: string
+  to: string
+  services: SummaryService[]
+  grand: { cashTotal: number; onlineTotal: number; cashCount: number; onlineCount: number; count: number; total: number }
+}
+
+const fmtDay = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+
+function ReportsTab() {
+  const { toast } = useToast()
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [data, setData] = useState<ReportSummary | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const pdfRef = useRef<HTMLDivElement>(null)
+
+  const load = useCallback(async (f: string, t: string) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (f) params.set('from', f)
+      if (t) params.set('to', t)
+      const res = await apiFetch(`/api/admin/report/summary?${params.toString()}`)
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Failed')
+      setData(d)
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Report failed', variant: 'destructive' })
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  // initial load (all time)
+  useEffect(() => {
+    load('', '')
+  }, [load])
+
+  const downloadPdf = async () => {
+    if (!pdfRef.current || pdfBusy) return
+    setPdfBusy(true)
+    try {
+      await downloadNodeAsPdf(pdfRef.current, `BAS-Report-${from || 'all'}_${to || 'time'}.pdf`)
+      toast({ title: 'PDF download হয়েছে ✓' })
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'PDF failed — আবার চেষ্টা করুন', variant: 'destructive' })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
+  const grand = data?.grand
+
+  return (
+    <div>
+      <h2 className="mb-1 text-lg font-black text-stone-800">Reports — Cash & Online হিসেব</h2>
+      <p className="mb-4 text-xs text-stone-500">
+        সব service-এর approve হওয়া Cash ও QR/Online transaction — date by date, total ও category অনুযায়ী। PDF download করুন।
+      </p>
+
+      {/* date range + actions */}
+      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3">
+        <div className="space-y-1">
+          <Label className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">From date</Label>
+          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-36 bg-white text-xs" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">To date</Label>
+          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 w-36 bg-white text-xs" />
+        </div>
+        <Button size="sm" disabled={loading} onClick={() => load(from, to)} className="h-9 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+          {loading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />} Load
+        </Button>
+        <Button size="sm" disabled={pdfBusy || !data} onClick={downloadPdf} className="h-9 rounded-lg bg-blue-900 text-white hover:bg-blue-800">
+          {pdfBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+          {pdfBusy ? 'PDF তৈরি হচ্ছে...' : 'Report PDF Download'}
+        </Button>
+        <p className="w-full text-[10px] leading-relaxed text-emerald-800/70">
+          📅 ফাঁকা রাখলে সব time-এর হিসেব আসবে। শুধু approve/verify হওয়া entry-গুলোই হিসেবে আসে — waiting/rejected আসে না।
+        </p>
+      </div>
+
+      {loading && !data ? (
+        <Loading />
+      ) : !data || !grand ? (
+        <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-400">Report load করা যায়নি</p>
+      ) : (
+        <>
+          {/* grand summary */}
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center shadow-sm">
+              <p className="text-xl font-black text-amber-800">{formatINR(grand.cashTotal)}</p>
+              <p className="mt-0.5 text-[11px] font-bold text-amber-700">💵 Cash মোট ({grand.cashCount})</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center shadow-sm">
+              <p className="text-xl font-black text-emerald-800">{formatINR(grand.onlineTotal)}</p>
+              <p className="mt-0.5 text-[11px] font-bold text-emerald-700">📱 Online মোট ({grand.onlineCount})</p>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-center shadow-sm">
+              <p className="text-xl font-black text-blue-900">{formatINR(grand.total)}</p>
+              <p className="mt-0.5 text-[11px] font-bold text-blue-700">সব মিলিয়ে মোট</p>
+            </div>
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm">
+              <p className="text-xl font-black text-stone-800">{grand.count}</p>
+              <p className="mt-0.5 text-[11px] font-bold text-stone-500">মোট entry</p>
+            </div>
+          </div>
+
+          {/* per-service cards */}
+          <div className="space-y-3">
+            {data.services.map((s) => (
+              <div key={s.key} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-black text-stone-900">{s.label}</p>
+                  {s.money ? (
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-black">
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">💵 Cash {formatINR(s.cashTotal)} ({s.cashCount})</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-800">📱 Online {formatINR(s.onlineTotal)} ({s.onlineCount})</span>
+                      <span className="rounded-full bg-blue-900 px-2.5 py-1 text-white">মোট {formatINR(s.total)}</span>
+                    </div>
+                  ) : (
+                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-black text-stone-600">{s.count} জন (ফি নেই)</span>
+                  )}
+                </div>
+
+                {s.rows.length === 0 ? (
+                  <p className="mt-3 rounded-xl bg-stone-50 p-3 text-center text-[11px] text-stone-400">এই date range-এ কোনো approve হওয়া entry নেই</p>
+                ) : (
+                  <div className="mt-3 max-h-96 overflow-y-auto rounded-xl border border-stone-100">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="sticky top-0 bg-stone-50 text-[9px] font-black uppercase tracking-wide text-stone-400">
+                        <tr>
+                          <th className="px-3 py-2">Date</th>
+                          <th className="px-3 py-2">Name / ID</th>
+                          <th className="px-3 py-2">Method</th>
+                          <th className="px-3 py-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {s.rows.map((r) => (
+                          <tr key={r.id} className="text-stone-700">
+                            <td className="whitespace-nowrap px-3 py-1.5 font-semibold">{fmtDay(r.date)}</td>
+                            <td className="max-w-[180px] truncate px-3 py-1.5">{r.name}</td>
+                            <td className="px-3 py-1.5">
+                              {s.money ? (
+                                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${r.method === 'CASH' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}`}>
+                                  {r.method === 'CASH' ? 'CASH' : 'ONLINE'}
+                                </span>
+                              ) : (
+                                <span className="text-stone-300">—</span>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-1.5 text-right font-black">{s.money ? formatINR(r.amount) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* hidden A4 print node for the PDF (rendered off-screen) */}
+      {data && (
+        <div className="pointer-events-none fixed left-[-10000px] top-0" aria-hidden>
+          <ReportPdfDoc ref={pdfRef} data={data} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A4-sized printable report — html-to-image + jsPDF দিয়ে এটাই PDF হয়ে যায়। */
+function ReportPdfDoc({ data, ref }: { data: ReportSummary; ref: React.Ref<HTMLDivElement> }) {
+  return (
+    <div ref={ref} className="w-[794px] bg-white p-10 text-stone-900">
+      {/* header */}
+      <div className="flex items-center justify-between border-b-4 border-blue-900 pb-4">
+        <div className="flex items-center gap-4">
+          <img src="/logo.png" alt="logo" className="h-16 w-16 rounded-full object-cover ring-2 ring-amber-400" />
+          <div>
+            <p className="text-2xl font-black tracking-wide text-blue-950">B.A.S SANGHA</p>
+            <p className="text-xs font-bold text-stone-500">Dakshin Gobindapur • Estd 2021</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-black text-blue-950">সমস্ত Service-এর আয়ের হিসেব</p>
+          <p className="text-xs font-bold text-stone-500">
+            {data.from || data.to ? `${data.from || 'শুরু'} → ${data.to || 'আজ পর্যন্ত'}` : 'সম্পূর্ণ রেকর্ড (All time)'}
+          </p>
+          <p className="mt-0.5 text-[10px] text-stone-400">শুধুমাত্র Approve/Verify হওয়া entry</p>
+        </div>
+      </div>
+
+      {/* grand summary */}
+      <div className="mt-5 grid grid-cols-4 gap-3">
+        {[
+          { label: 'Cash মোট (নগদ)', value: formatINR(data.grand.cashTotal), sub: `${data.grand.cashCount} entry`, cls: 'border-amber-300 bg-amber-50' },
+          { label: 'Online মোট (QR/UPI)', value: formatINR(data.grand.onlineTotal), sub: `${data.grand.onlineCount} entry`, cls: 'border-emerald-300 bg-emerald-50' },
+          { label: 'সব মিলিয়ে মোট', value: formatINR(data.grand.total), sub: 'Cash + Online', cls: 'border-blue-300 bg-blue-50' },
+          { label: 'মোট Entry', value: String(data.grand.count), sub: 'সব service মিলিয়ে', cls: 'border-stone-300 bg-stone-50' },
+        ].map((c) => (
+          <div key={c.label} className={`rounded-xl border-2 p-3 text-center ${c.cls}`}>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-stone-500">{c.label}</p>
+            <p className="mt-1 text-lg font-black text-stone-900">{c.value}</p>
+            <p className="text-[10px] font-semibold text-stone-400">{c.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* per-service sections */}
+      {data.services.map((s) => (
+        <div key={s.key} className="mt-6 break-inside-avoid">
+          <div className="flex items-center justify-between border-b-2 border-stone-200 pb-1.5">
+            <p className="text-sm font-black text-blue-950">{s.label}</p>
+            {s.money ? (
+              <p className="text-[11px] font-black text-stone-600">
+                Cash: {formatINR(s.cashTotal)} ({s.cashCount}) &nbsp;•&nbsp; Online: {formatINR(s.onlineTotal)} ({s.onlineCount}) &nbsp;•&nbsp; মোট:{' '}
+                <span className="text-blue-900">{formatINR(s.total)}</span>
+              </p>
+            ) : (
+              <p className="text-[11px] font-black text-stone-600">{s.count} জন (ফি নেই)</p>
+            )}
+          </div>
+          {s.rows.length > 0 ? (
+            <table className="mt-2 w-full text-left text-[11px]">
+              <thead className="bg-stone-100 text-[9px] font-black uppercase tracking-wide text-stone-500">
+                <tr>
+                  <th className="px-2 py-1.5">#</th>
+                  <th className="px-2 py-1.5">Date</th>
+                  <th className="px-2 py-1.5">Name / ID</th>
+                  <th className="px-2 py-1.5">Method</th>
+                  <th className="px-2 py-1.5 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {s.rows.map((r, i) => (
+                  <tr key={r.id} className="text-stone-700">
+                    <td className="px-2 py-1 text-stone-400">{i + 1}</td>
+                    <td className="whitespace-nowrap px-2 py-1 font-semibold">{fmtDay(r.date)}</td>
+                    <td className="px-2 py-1">{r.name}</td>
+                    <td className="px-2 py-1 font-bold">{s.money ? (r.method === 'CASH' ? 'CASH' : 'ONLINE') : '—'}</td>
+                    <td className="whitespace-nowrap px-2 py-1 text-right font-black">{s.money ? formatINR(r.amount) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="mt-2 text-[11px] font-semibold text-stone-400">এই সময়ে কোনো approve হওয়া entry নেই।</p>
+          )}
+        </div>
+      ))}
+
+      <p className="mt-8 border-t border-dashed border-stone-300 pt-3 text-center text-[10px] text-stone-400">
+        B.A.S Sangha • Dakshin Gobindapur — computer generated report • {new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+      </p>
     </div>
   )
 }
@@ -1810,8 +2129,10 @@ function SettingsTab() {
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
         <p className="font-black">ℹ️ Info</p>
         <p className="mt-1">
+          • Payment এখন দুই রকম — <b>QR/UPI</b> (UTR জমা দেয়) অথবা <b>Cash (নগদ)</b>। Cash entry-তে টাকা হাতে পেয়ে &ldquo;Cash পেয়েছি — Approve&rdquo; চাপবেন, UTR থাকবে না।<br />
           • UTR পেমেন্ট approve/reject করতে &ldquo;Member Requests&rdquo; বা &ldquo;Tournaments&rdquo; tab ব্যবহার করুন।<br />
-          • Drawing entry fee ₹30 (Events tab-এ DRAWING fee বদলালে সেটাই কাটবে) — user form জমিয়ে payment করবে, তারপর এখানে approve করবেন।<br />
+          • Drawing entry fee ₹30 (Events tab-এ DRAWING fee বদলালে সেটাই কাটবে) — user form জমিয়ে QR pay বা Cash বেছে নেবে, তারপর এখানে approve করবেন।<br />
+          • <b>Reports</b> tab থেকে সব service-এর approve হওয়া Cash/Online হিসেব date-range দিয়ে <b>PDF</b> download করা যায়।<br />
           • Blood Donation এ fee নেই — সেটা শুধু registration।<br />
           • এখানে পরিবর্তন করলে সাথে সাথেই user side এ দেখা যাবে।
         </p>

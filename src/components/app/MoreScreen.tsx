@@ -168,7 +168,7 @@ export default function MoreScreen() {
           </div>
           <div className="min-w-0">
             <p className="truncate text-base font-black text-blue-950">B.A.S SANGHA</p>
-            <p className="truncate text-xs text-stone-500">Dekchin Gobindapur • Estd 2021</p>
+            <p className="truncate text-xs text-stone-500">Dakshin Gobindapur • Estd 2021</p>
             <p className="truncate text-[11px] font-semibold text-blue-700">{user?.name} ({user?.email})</p>
           </div>
         </div>

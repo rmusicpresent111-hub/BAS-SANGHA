@@ -12,6 +12,7 @@ import { ScreenHeader, Watermark, Loading, formatINR } from './common'
 import StatusCard from './StatusCard'
 import DrawingReceipt from './DrawingReceipt'
 import PaymentFlow from './PaymentFlow'
+import PaymentMethodChoice, { type PayMethod } from './PaymentMethodChoice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,6 +30,7 @@ export default function DrawingScreen() {
   const [preview, setPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [payKey, setPayKey] = useState(0) // remount PaymentFlow for a fresh timer after expiry
+  const [payMethod, setPayMethod] = useState<PayMethod>('QR')
   const [form, setForm] = useState({ name: '', fatherName: '', className: '', schoolName: '', phone: '' })
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -131,13 +133,18 @@ export default function DrawingScreen() {
       fd.set('className', form.className)
       fd.set('schoolName', form.schoolName)
       fd.set('phone', form.phone)
+      fd.set('paymentMethod', payMethod)
       fd.set('doc', file)
       const res = await apiFetch('/api/drawing-request', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Submission failed')
       await loadStatus()
       setStep('status')
-      toast({ title: 'Entry saved! এখন payment করুন 🎨' })
+      toast(
+        payMethod === 'CASH'
+          ? { title: 'Entry জমা হয়েছে ✓ (Cash)', description: 'কমিটির হাতে টাকা দিন — admin টাকা পেয়ে approve করবে' }
+          : { title: 'Entry saved! এখন payment করুন 🎨' }
+      )
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : 'Submission failed', variant: 'destructive' })
     } finally {
@@ -266,8 +273,8 @@ export default function DrawingScreen() {
             ) : null}
           </motion.div>
 
-          {/* payment receipt — download + share */}
-          {r.utr && (
+          {/* payment receipt — download + share (QR = UTR, Cash = নগদ) */}
+          {(r.utr || String(r.paymentMethod || '').toUpperCase() === 'CASH') && (
             <DrawingReceipt
               entry={{
                 id: r.id,
@@ -278,6 +285,7 @@ export default function DrawingScreen() {
                 phone: r.phone,
                 fee: r.fee,
                 utr: r.utr,
+                paymentMethod: r.paymentMethod,
                 status: r.status,
                 createdAt: r.createdAt,
               }}
@@ -299,6 +307,9 @@ export default function DrawingScreen() {
           { label: 'School', value: r.schoolName },
           { label: 'Mobile', value: r.phone },
           { label: 'Entry Fee Paid', value: formatINR(r.fee || 0) },
+          ...(String(r.paymentMethod || '').toUpperCase() === 'CASH'
+            ? [{ label: 'Payment', value: '💵 Cash (নগদ) — admin verification' }]
+            : []),
           ...(r.utr ? [{ label: 'UTR Number', value: r.utr }] : []),
           ...(event?.eventDate ? [{ label: 'Date', value: event.eventDate }] : []),
           ...(event?.venue ? [{ label: 'Venue', value: event.venue }] : []),
@@ -446,12 +457,19 @@ export default function DrawingScreen() {
               </div>
             </div>
 
+            {/* payment method — QR/UPI or Cash (same choice on every paid flow) */}
+            <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <PaymentMethodChoice value={payMethod} onChange={setPayMethod} amountText={formatINR(displayFee)} />
+            </div>
+
             <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-center text-[11px] font-semibold leading-relaxed text-amber-900">
-              ℹ️ Submit করার পর {formatINR(displayFee)} entry fee pay করে UTR number জমা দিতে হবে — তারপর admin approval-এ যাবে।
+              {payMethod === 'CASH'
+                ? `ℹ️ Submit করার পর ${formatINR(displayFee)} নগদ টাকা কমিটির হাতে দিন — admin টাকা পেয়ে approve করবে।`
+                : `ℹ️ Submit করার পর ${formatINR(displayFee)} entry fee pay করে UTR number জমা দিতে হবে — তারপর admin approval-এ যাবে।`}
             </p>
 
             <Button type="submit" disabled={submitting} className="w-full rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 py-5 text-base font-bold text-white shadow-lg hover:from-amber-700 hover:to-amber-600">
-              <Send className="mr-1.5 h-5 w-5" /> {submitting ? 'Submitting...' : 'Submit & Continue to Payment'}
+              <Send className="mr-1.5 h-5 w-5" /> {submitting ? 'Submitting...' : payMethod === 'CASH' ? 'Submit Entry (Cash)' : 'Submit & Continue to Payment'}
             </Button>
           </form>
         )}

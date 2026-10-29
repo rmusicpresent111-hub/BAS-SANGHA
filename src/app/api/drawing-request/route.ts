@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { saveUpload } from '@/lib/upload'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
-import { ensureDrawingColumns } from '@/lib/drawing-migrate'
+import { ensureDrawingColumns, ensurePaymentMethodColumns } from '@/lib/drawing-migrate'
 
 /** Default entry fee (₹30) when the admin hasn't set a DRAWING event fee. */
 const DEFAULT_FEE = 30
@@ -34,9 +34,13 @@ export async function GET(req: NextRequest) {
 /**
  * Submit drawing competition entry (multipart with document) — STEP 1.
  *
- * New flow: form first → entry is created as UNPAID (fee snapshot stored) →
- * the user pays via UPI and submits the UTR at /api/drawing-request/pay →
- * only then does the entry enter the admin review queue (WAITING).
+ * Flow depends on the chosen payment method:
+ * - paymentMethod "QR" (default): entry is created as UNPAID (fee snapshot stored) →
+ *   the user pays via UPI and submits the UTR at /api/drawing-request/pay →
+ *   only then does the entry enter the admin review queue (WAITING).
+ * - paymentMethod "CASH": no online payment — the entry goes straight into the
+ *   admin review queue (WAITING); the admin collects the cash by hand and
+ *   approves it there.
  */
 export async function POST(req: NextRequest) {
   const session = await getUser(req)
@@ -46,6 +50,7 @@ export async function POST(req: NextRequest) {
   if (Math.random() < 0.05) pruneRateLimits()
   try {
     await ensureDrawingColumns()
+    await ensurePaymentMethodColumns()
     const form = await req.formData()
     // audit: hard length caps on free-text fields (DB abuse / spam control)
     const name = String(form.get('name') || '').trim().slice(0, 80)
@@ -53,6 +58,7 @@ export async function POST(req: NextRequest) {
     const className = String(form.get('className') || '').trim().slice(0, 20)
     const schoolName = String(form.get('schoolName') || '').trim().slice(0, 120)
     const phone = String(form.get('phone') || '').trim().slice(0, 15)
+    const paymentMethod = String(form.get('paymentMethod') || 'QR').trim().slice(0, 10).toUpperCase() === 'CASH' ? 'CASH' : 'QR'
     const doc = form.get('doc')
 
     if (!name || !fatherName || !className || !schoolName)
@@ -92,7 +98,9 @@ export async function POST(req: NextRequest) {
         phone,
         fee,
         docUrl,
-        status: 'UNPAID',
+        paymentMethod,
+        // cash skips the online payment step — straight into the review queue
+        status: paymentMethod === 'CASH' ? 'WAITING' : 'UNPAID',
       },
     })
     return NextResponse.json({ request })

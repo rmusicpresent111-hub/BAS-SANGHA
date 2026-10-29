@@ -123,7 +123,7 @@ export default function AppHeader({
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-black tracking-wide text-white sm:text-2xl">B.A.S SANGHA</h1>
-              <p className="truncate text-[10px] font-medium text-blue-100/85 sm:text-[11px]">Dekchin Gobindapur • Estd 2021</p>
+              <p className="truncate text-[10px] font-medium text-blue-100/85 sm:text-[11px]">Dakshin Gobindapur • Estd 2021</p>
               <p className="truncate font-serif text-[10px] italic tracking-wide text-blue-200/85 sm:text-[11px]">{tagline}</p>
             </div>
           </div>

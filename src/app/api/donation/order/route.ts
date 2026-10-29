@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { getUpiSettings, buildUpiIntent, qrDataUrlFor } from '@/lib/upi'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
+import { ensurePaymentMethodColumns } from '@/lib/drawing-migrate'
 
 /**
  * Security rules for donations:
@@ -28,7 +29,11 @@ function makeOrderId(): string {
   return `BAS-D-${s}`
 }
 
-/** POST { amount, phone? } -> creates a PENDING donation order + upiIntent */
+/** POST { amount, phone?, paymentMethod? } -> creates a donation order
+ *  - paymentMethod "QR" (default): PENDING order + upiIntent — user pays via UPI, submits UTR.
+ *  - paymentMethod "CASH": order goes straight to SUBMITTED — admin verifies the
+ *    cash by hand and marks it VERIFIED. No UTR/UPI involved.
+ */
 export async function POST(req: NextRequest) {
   const session = await getUser(req)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -37,7 +42,9 @@ export async function POST(req: NextRequest) {
   if (Math.random() < 0.05) pruneRateLimits()
 
   try {
+    await ensurePaymentMethodColumns()
     const body = await req.json().catch(() => ({}))
+    const paymentMethod = String(body.paymentMethod || 'QR').toUpperCase() === 'CASH' ? 'CASH' : 'QR'
     const amount = Math.round(Number(body.amount))
     if (!Number.isFinite(amount) || amount < AMOUNT_MIN || amount > AMOUNT_MAX)
       return NextResponse.json(
@@ -67,7 +74,9 @@ export async function POST(req: NextRequest) {
         amount,
         payerName: session.name || 'Donor',
         payerPhone,
-        status: 'PENDING',
+        paymentMethod,
+        // cash needs no UTR proof — it lands directly in the admin verify queue
+        status: paymentMethod === 'CASH' ? 'SUBMITTED' : 'PENDING',
       },
     })
 
@@ -86,6 +95,7 @@ export async function POST(req: NextRequest) {
         orderId,
         amount,
         status: donation.status,
+        paymentMethod: donation.paymentMethod,
         payerName: donation.payerName,
         payerPhone: donation.payerPhone,
         createdAt: donation.createdAt,

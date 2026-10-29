@@ -106,6 +106,7 @@ model MemberRequest {
   cardNumber String? // membership ID, e.g. B-A-S-982609 — assigned on approval
   fee        Int
   utr        String
+  paymentMethod String @default("QR") // QR (UPI online) | CASH (paid by hand, admin verifies)
   status     String   @default("WAITING") // WAITING | APPROVED | REJECTED
   note       String?
   createdAt  DateTime @default(now())
@@ -121,6 +122,7 @@ model TournamentRequest {
   phone     String
   fee       Int
   utr       String
+  paymentMethod String @default("QR") // QR (UPI online) | CASH (paid by hand, admin verifies)
   status    String   @default("WAITING")
   note      String?
   createdAt DateTime @default(now())
@@ -137,6 +139,7 @@ model DrawingRequest {
   phone      String   @default("") // contact mobile number (new flow)
   fee        Int      @default(0) // entry fee snapshot at submission (₹30 default)
   utr        String? // UPI transaction ref — submitted after paying, before admin review
+  paymentMethod String @default("QR") // QR (UPI online) | CASH (paid by hand, admin verifies)
   docUrl     String
   status     String   @default("WAITING") // UNPAID (form done, awaiting payment) | WAITING (paid, awaiting admin) | APPROVED | REJECTED
   note       String?
@@ -199,6 +202,7 @@ model Donation {
   userId     String
   amount     Int // validated server-side (₹10 – ₹1,00,000)
   utr        String? // 12-digit UPI transaction ref, submitted after paying
+  paymentMethod String @default("QR") // QR (UPI online) | CASH (paid by hand, admin verifies)
   status     String   @default("PENDING") // PENDING | SUBMITTED | VERIFIED | REJECTED
   payerName  String
   payerPhone String   @default("")

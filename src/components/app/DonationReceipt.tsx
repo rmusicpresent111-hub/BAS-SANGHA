@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
-import { BadgeCheck, CalendarDays, Download, Fingerprint, IndianRupee, Loader2, Phone, Share2, User } from 'lucide-react'
+import { BadgeCheck, CalendarDays, Download, Fingerprint, IndianRupee, Loader2, Phone, Share2, User, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { formatINR } from './common'
@@ -14,6 +14,7 @@ export interface DonationReceiptData {
   payerName: string
   payerPhone: string
   utr?: string | null
+  paymentMethod?: string | null // QR (UPI online) | CASH
   note?: string | null
   createdAt: string
 }
@@ -36,6 +37,7 @@ export default function DonationReceipt({ donation, compact }: { donation: Donat
   const [downloading, setDownloading] = useState(false)
   const [sharing, setSharing] = useState(false)
 
+  const isCash = String(donation.paymentMethod || '').toUpperCase() === 'CASH'
   const status = STATUS_MAP[donation.status] || STATUS_MAP.PENDING
   const date = new Date(donation.createdAt).toLocaleString('en-IN', {
     day: 'numeric',
@@ -51,9 +53,9 @@ export default function DonationReceipt({ donation, compact }: { donation: Donat
     `Donor: ${donation.payerName}`,
     donation.payerPhone ? `Phone: ${donation.payerPhone}` : '',
     `Order ID: ${donation.orderId}`,
-    donation.utr ? `UTR: ${donation.utr}` : '',
+    isCash ? 'Payment: CASH (নগদ টাকা)' : donation.utr ? `UTR: ${donation.utr}` : '',
     `Date: ${date}`,
-    'Dekchin Gobindapur • Estd 2021',
+    'Dakshin Gobindapur • Estd 2021',
   ]
     .filter(Boolean)
     .join('\n')
@@ -162,7 +164,11 @@ export default function DonationReceipt({ donation, compact }: { donation: Donat
           <Row icon={User} label="Donor Name" value={donation.payerName} />
           {donation.payerPhone ? <Row icon={Phone} label="Phone" value={donation.payerPhone} /> : null}
           <Row icon={Fingerprint} label="Payment Order ID" value={donation.orderId} mono />
-          {donation.utr ? <Row icon={BadgeCheck} label="UPI Transaction ID (UTR)" value={donation.utr} mono /> : null}
+          {isCash ? (
+            <Row icon={Wallet} label="Payment Method" value="Cash (নগদ টাকা)" />
+          ) : donation.utr ? (
+            <Row icon={BadgeCheck} label="UPI Transaction ID (UTR)" value={donation.utr} mono />
+          ) : null}
           <Row icon={CalendarDays} label="Date & Time" value={date} />
           {donation.note ? <Row icon={BadgeCheck} label="Committee Note" value={donation.note} /> : null}
         </div>
@@ -172,7 +178,7 @@ export default function DonationReceipt({ donation, compact }: { donation: Donat
           <p className="text-[2.5cqw] font-semibold leading-relaxed text-stone-500">
             ধন্যবাদ! আপনার সহযোগিতাই আমাদের পুজো ও সমাজসেবা সামনে রাখবে 🙏
           </p>
-          <p className="mt-[1cqw] text-[2.2cqw] text-stone-400">Dekchin Gobindapur • Estd 2021 • computer generated receipt</p>
+          <p className="mt-[1cqw] text-[2.2cqw] text-stone-400">Dakshin Gobindapur • Estd 2021 • computer generated receipt</p>
         </div>
       </div>
 

@@ -100,6 +100,7 @@ export interface MemberRequestDto {
   cardNumber?: string | null
   fee: number
   utr: string
+  paymentMethod?: string
   status: ReqStatus
   note?: string | null
   createdAt: string
@@ -114,6 +115,7 @@ export interface TournamentRequestDto {
   phone: string
   fee: number
   utr: string
+  paymentMethod?: string
   status: ReqStatus
   note?: string | null
   createdAt: string
@@ -129,6 +131,7 @@ export interface DrawingRequestDto {
   phone: string
   fee: number
   utr?: string | null
+  paymentMethod?: string
   docUrl: string
   status: ReqStatus | 'UNPAID'
   note?: string | null

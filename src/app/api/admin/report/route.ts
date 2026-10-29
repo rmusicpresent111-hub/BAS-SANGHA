@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
-import { ensureDrawingColumns } from '@/lib/drawing-migrate'
+import { ensureDrawingColumns, ensurePaymentMethodColumns } from '@/lib/drawing-migrate'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -26,34 +26,39 @@ const fmtDate = (d: Date) =>
 /** Row builders return the header + one array of cells per record. */
 async function buildRows(type: ReportType, from: Date, to: Date) {
   const range = { createdAt: { gte: from, lte: to } }
+  const pay = (m: string | null | undefined) => (String(m || 'QR').toUpperCase() === 'CASH' ? 'CASH' : 'QR/UPI')
   if (type === 'donations') {
+    await ensurePaymentMethodColumns()
     const rows = await db.donation.findMany({ where: range, orderBy: { createdAt: 'desc' } })
     const users = await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true, email: true } })
     const umap = new Map(users.map((u) => [u.id, u]))
-    const header = ['Order ID', 'Date', 'Amount (₹)', 'Status', 'Donor Account', 'Email', 'Payer Name', 'Phone', 'UTR', 'Note']
-    return { header, rows: rows.map((d) => [d.orderId, fmtDate(d.createdAt), d.amount, d.status, umap.get(d.userId)?.name || '—', umap.get(d.userId)?.email || '—', d.payerName, d.payerPhone, d.utr || '—', d.note || '']) }
+    const header = ['Order ID', 'Date', 'Amount (₹)', 'Status', 'Payment Method', 'Donor Account', 'Email', 'Payer Name', 'Phone', 'UTR', 'Note']
+    return { header, rows: rows.map((d) => [d.orderId, fmtDate(d.createdAt), d.amount, d.status, pay(d.paymentMethod), umap.get(d.userId)?.name || '—', umap.get(d.userId)?.email || '—', d.payerName, d.payerPhone, d.utr || '—', d.note || '']) }
   }
   if (type === 'member') {
+    await ensurePaymentMethodColumns()
     const rows = await db.memberRequest.findMany({ where: range, orderBy: { createdAt: 'desc' } })
     const users = await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true, email: true } })
     const umap = new Map(users.map((u) => [u.id, u]))
-    const header = ['Date', 'Name', 'Age', "Father's Name", 'Address', 'Phone', 'Email', 'Member ID', 'Fee (₹)', 'UTR', 'Status', 'Note', 'Account', 'Account Email']
-    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.name, r.age, r.fatherName, r.address, r.phone, r.email, r.cardNumber || '—', r.fee, r.utr, r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
+    const header = ['Date', 'Name', 'Age', "Father's Name", 'Address', 'Phone', 'Email', 'Member ID', 'Fee (₹)', 'Payment Method', 'UTR', 'Status', 'Note', 'Account', 'Account Email']
+    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.name, r.age, r.fatherName, r.address, r.phone, r.email, r.cardNumber || '—', r.fee, pay(r.paymentMethod), r.utr || '—', r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
   }
   if (type === 'tournament') {
+    await ensurePaymentMethodColumns()
     const rows = await db.tournamentRequest.findMany({ where: range, orderBy: { createdAt: 'desc' } })
     const users = await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true, email: true } })
     const umap = new Map(users.map((u) => [u.id, u]))
-    const header = ['Date', 'Team Name', 'Type', 'Address', 'Phone', 'Fee (₹)', 'UTR', 'Status', 'Note', 'Account', 'Account Email']
-    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.teamName, r.type, r.address, r.phone, r.fee, r.utr, r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
+    const header = ['Date', 'Team Name', 'Type', 'Address', 'Phone', 'Fee (₹)', 'Payment Method', 'UTR', 'Status', 'Note', 'Account', 'Account Email']
+    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.teamName, r.type, r.address, r.phone, r.fee, pay(r.paymentMethod), r.utr || '—', r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
   }
   if (type === 'drawing') {
     await ensureDrawingColumns()
+    await ensurePaymentMethodColumns()
     const rows = await db.drawingRequest.findMany({ where: range, orderBy: { createdAt: 'desc' } })
     const users = await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true, email: true } })
     const umap = new Map(users.map((u) => [u.id, u]))
-    const header = ['Date', 'Name', "Father's Name", 'Class', 'School', 'Mobile', 'Fee (₹)', 'UTR', 'Status', 'Note', 'Account', 'Account Email']
-    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.name, r.fatherName, r.className, r.schoolName, r.phone || '—', r.fee || 0, r.utr || '—', r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
+    const header = ['Date', 'Name', "Father's Name", 'Class', 'School', 'Mobile', 'Fee (₹)', 'Payment Method', 'UTR', 'Status', 'Note', 'Account', 'Account Email']
+    return { header, rows: rows.map((r) => [fmtDate(r.createdAt), r.name, r.fatherName, r.className, r.schoolName, r.phone || '—', r.fee || 0, pay(r.paymentMethod), r.utr || '—', r.status, r.note || '', umap.get(r.userId)?.name || '—', umap.get(r.userId)?.email || '—']) }
   }
   const rows = await db.bloodRequest.findMany({ where: range, orderBy: { createdAt: 'desc' } })
   const users = await db.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: { id: true, name: true, email: true } })
