@@ -64,12 +64,36 @@ export async function saveUpload(file: File): Promise<string | null> {
   return name
 }
 
+/** decoded-file cache — names are immutable (timestamp + random hex), so a
+ * file's bytes never change and can be cached indefinitely. Avoids a remote
+ * Turso round-trip + base64 decode on every view/optimizer request (was
+ * ~4s per photo on serverless, now instant on warm instances). */
+const fileCache = new Map<string, { buf: Buffer; type: string }>()
+const FILE_CACHE_MAX_BYTES = 48 * 1024 * 1024 // ~48 MB total
+let fileCacheBytes = 0
+
+function cachePut(name: string, entry: { buf: Buffer; type: string }) {
+  // evict oldest entries until the new one fits
+  while (fileCache.size > 0 && fileCacheBytes + entry.buf.length > FILE_CACHE_MAX_BYTES) {
+    const oldest = fileCache.keys().next().value
+    if (oldest === undefined) break
+    fileCacheBytes -= fileCache.get(oldest)!.buf.length
+    fileCache.delete(oldest)
+  }
+  fileCache.set(name, entry)
+  fileCacheBytes += entry.buf.length
+}
+
 /** Reads an uploaded file by name from the DB. Returns null for invalid/missing names. */
 export async function safeReadUpload(name: string): Promise<{ buf: Buffer; type: string } | null> {
   if (!name || name.includes('..') || name.includes('/') || name.includes('\\')) return null
   const ext = (name.split('.').pop() || '').toLowerCase()
   if (!ALLOWED_EXT.includes(ext)) return null
+  const cached = fileCache.get(name)
+  if (cached) return cached
   const row = await db.storedFile.findUnique({ where: { name } })
   if (!row) return null
-  return { buf: Buffer.from(row.data, 'base64'), type: row.mime }
+  const entry = { buf: Buffer.from(row.data, 'base64'), type: row.mime }
+  cachePut(name, entry)
+  return entry
 }

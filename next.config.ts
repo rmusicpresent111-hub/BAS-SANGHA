@@ -51,6 +51,19 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  images: {
+    // Whitelist for the next/image optimizer. Uploaded files live at
+    // /api/files?name=<name> (query-string URLs) and Next rejects local
+    // images with query strings unless they are explicitly allowed here.
+    // Without this, photos uploaded from the admin panel never render in
+    // the app (optimizer 400s), while static /images/* kept working.
+    localPatterns: [
+      { pathname: "/api/files" }, // any query string allowed
+      { pathname: "/images/**" },
+      { pathname: "/logo.png" },
+      { pathname: "/_next/static/media/**", search: "" },
+    ],
+  },
   async headers() {
     return [
       {
