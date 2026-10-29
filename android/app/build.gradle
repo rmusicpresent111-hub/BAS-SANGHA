@@ -16,6 +16,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // declared BEFORE buildTypes — buildTypes.release references it below
+    signingConfigs {
+        release {
+            def ksFile = System.getenv('SIGNING_KEYSTORE_FILE')
+            if (ksFile != null) {
+                storeFile file(ksFile)
+                storePassword System.getenv('SIGNING_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -26,18 +39,6 @@ android {
             def ksFile = System.getenv('SIGNING_KEYSTORE_FILE')
             if (ksFile != null) {
                 signingConfig signingConfigs.release
-            }
-        }
-    }
-
-    signingConfigs {
-        release {
-            def ksFile = System.getenv('SIGNING_KEYSTORE_FILE')
-            if (ksFile != null) {
-                storeFile file(ksFile)
-                storePassword System.getenv('SIGNING_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('SIGNING_KEY_ALIAS')
-                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
             }
         }
     }
