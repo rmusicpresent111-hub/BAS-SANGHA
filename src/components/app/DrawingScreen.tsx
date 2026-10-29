@@ -5,7 +5,8 @@ import Image from 'next/image'
 import { CalendarDays, FileUp, MapPin, Palette, PartyPopper, Send, X } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { apiFetch, clearToken } from '@/lib/api'
-import type { DrawingRequestDto, EventDto } from '@/lib/types'
+import { useCachedJson } from '@/lib/client-cache'
+import type { DrawingRequestDto, EventDto, HomeData } from '@/lib/types'
 import { ScreenHeader, Watermark, Loading, formatINR } from './common'
 import StatusCard from './StatusCard'
 import { Button } from '@/components/ui/button'
@@ -49,14 +50,14 @@ export default function DrawingScreen() {
     if (!user) return
     loadStatus()
     setForm((f) => ({ ...f, name: f.name || user.name }))
-    fetch('/api/public/home')
-      .then((r) => r.json())
-      .then((d) => {
-        const ev: EventDto | undefined = d.events?.find((e: EventDto) => e.type === 'DRAWING')
-        setEvent(ev || null)
-      })
-      .catch(() => {})
   }, [user, loadStatus])
+
+  // event comes from the shared cached home payload (instant on repeat visits)
+  const { data: home } = useCachedJson<HomeData>('/api/public/home')
+  useEffect(() => {
+    const ev: EventDto | undefined = home?.events?.find((e: EventDto) => e.type === 'DRAWING')
+    setEvent(ev || null)
+  }, [home])
 
   if (!user) return <Loading />
 

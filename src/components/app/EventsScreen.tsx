@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { CalendarDays, MapPin } from 'lucide-react'
 import { useApp } from '@/lib/store'
+import { useCachedJson } from '@/lib/client-cache'
 import type { EventDto, HomeData, EventType } from '@/lib/types'
 import { formatINR, Loading, ScreenHeader } from './common'
 import MainShell from './MainShell'
@@ -18,14 +18,7 @@ const EVENT_VIEWS: Record<EventType, 'cricket' | 'football' | 'drawing' | 'blood
 
 export default function EventsScreen() {
   const { setView } = useApp()
-  const [data, setData] = useState<HomeData | null>(null)
-
-  useEffect(() => {
-    fetch('/api/public/home')
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => setData(null))
-  }, [])
+  const { data } = useCachedJson<HomeData>('/api/public/home')
 
   const events: EventDto[] = data?.events || []
 

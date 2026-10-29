@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useApp, type View } from '@/lib/store'
+import { useCachedJson } from '@/lib/client-cache'
 import type { HomeData } from '@/lib/types'
 import { Loading } from './common'
 import AppHeader from './AppHeader'
@@ -15,15 +16,10 @@ import { useToast } from '@/hooks/use-toast'
 export default function HomeScreen() {
   const { setDonationOpen, setView } = useApp()
   const { toast } = useToast()
-  const [data, setData] = useState<HomeData | null>(null)
+  const { data } = useCachedJson<HomeData>('/api/public/home', {
+    onError: () => toast({ title: 'Failed to load home', variant: 'destructive' }),
+  })
   const committeeRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    fetch('/api/public/home')
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => toast({ title: 'Failed to load home', variant: 'destructive' }))
-  }, [toast])
 
   // hide the main window scrollbar while Home is active
   useEffect(() => {

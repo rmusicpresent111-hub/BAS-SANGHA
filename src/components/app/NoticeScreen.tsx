@@ -1,22 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { CalendarDays, Megaphone } from 'lucide-react'
 import { useApp } from '@/lib/store'
+import { useCachedJson } from '@/lib/client-cache'
 import type { NoticeDto } from '@/lib/types'
 import { Loading, ScreenHeader } from './common'
 import MainShell from './MainShell'
 
 export default function NoticeScreen() {
   const { setView } = useApp()
-  const [notices, setNotices] = useState<NoticeDto[] | null>(null)
-
-  useEffect(() => {
-    fetch('/api/public/notices')
-      .then((r) => r.json())
-      .then((d) => setNotices(d.notices || []))
-      .catch(() => setNotices([]))
-  }, [])
+  const { data } = useCachedJson<{ notices?: NoticeDto[] }>('/api/public/notices')
+  const notices: NoticeDto[] | null = data ? data.notices || [] : null
 
   return (
     <MainShell>

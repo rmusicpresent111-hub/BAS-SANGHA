@@ -1,24 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Phone } from 'lucide-react'
 import { useApp } from '@/lib/store'
-import type { MemberDto } from '@/lib/types'
+import { useCachedJson } from '@/lib/client-cache'
+import type { HomeData, MemberDto } from '@/lib/types'
 import { Loading, ScreenHeader } from './common'
 import MainShell from './MainShell'
 
 /** Full member list (opens from Quick Actions / "সবর্ই দেখুন"). */
 export default function MembersScreen() {
   const { setView } = useApp()
-  const [members, setMembers] = useState<MemberDto[] | null>(null)
-
-  useEffect(() => {
-    fetch('/api/public/home')
-      .then((r) => r.json())
-      .then((d) => setMembers(d.members || []))
-      .catch(() => setMembers([]))
-  }, [])
+  const { data } = useCachedJson<HomeData>('/api/public/home')
+  const members: MemberDto[] | null = data ? data.members || [] : null
 
   return (
     <MainShell>

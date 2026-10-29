@@ -13,7 +13,8 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { apiFetch, clearToken } from '@/lib/api'
-import type { TournamentRequestDto, EventDto } from '@/lib/types'
+import { useCachedJson } from '@/lib/client-cache'
+import type { TournamentRequestDto, EventDto, HomeData } from '@/lib/types'
 import { ScreenHeader, Watermark, formatINR, Loading } from './common'
 import PaymentFlow from './PaymentFlow'
 import StatusCard from './StatusCard'
@@ -58,15 +59,15 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
   useEffect(() => {
     if (!user) return
     loadStatus()
-    fetch('/api/public/home')
-      .then((r) => r.json())
-      .then((d) => {
-        const ev: EventDto | undefined = d.events?.find((e: EventDto) => e.type === type)
-        setEvent(ev || null)
-      })
-      .catch(() => setEvent(null))
-      .finally(() => setFeeLoaded(true))
-  }, [user, loadStatus, type])
+  }, [user, loadStatus])
+
+  // event + entry fee come from the shared cached home payload (instant on repeat visits)
+  const { data: home } = useCachedJson<HomeData>('/api/public/home')
+  useEffect(() => {
+    const ev: EventDto | undefined = home?.events?.find((e: EventDto) => e.type === type)
+    setEvent(ev || null)
+    if (home) setFeeLoaded(true)
+  }, [home, type])
 
   if (!user) return <Loading />
 

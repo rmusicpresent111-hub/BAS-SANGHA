@@ -5,7 +5,8 @@ import { motion } from 'framer-motion'
 import { BadgeIndianRupee, IdCard, ImagePlus, Lock, PartyPopper, Phone, UserPlus, X } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { apiFetch, clearToken } from '@/lib/api'
-import type { MemberRequestDto } from '@/lib/types'
+import { useCachedJson } from '@/lib/client-cache'
+import type { HomeData, MemberRequestDto } from '@/lib/types'
 import { ScreenHeader, formatINR, Loading } from './common'
 import PaymentFlow from './PaymentFlow'
 import StatusCard from './StatusCard'
@@ -58,11 +59,14 @@ export default function MemberJoinScreen() {
     if (!user) return
     loadStatus()
     setForm((f) => ({ ...f, name: f.name || user.name }))
-    fetch('/api/public/home')
-      .then((r) => r.json())
-      .then((d) => Number(d.settings?.memberFee) && setFee(Number(d.settings.memberFee)))
-      .catch(() => {})
   }, [user, loadStatus])
+
+  // membership fee comes from the shared cached home payload (instant on repeat visits)
+  const { data: home } = useCachedJson<HomeData>('/api/public/home')
+  useEffect(() => {
+    const f = Number(home?.settings?.memberFee)
+    if (f) setFee(f)
+  }, [home])
 
   // release the photo blob URL when leaving the screen
   useEffect(() => {

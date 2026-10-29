@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Camera, X } from 'lucide-react'
+import { useCachedJson } from '@/lib/client-cache'
 import type { GalleryData, GalleryPhotoDto } from '@/lib/types'
 import { Loading } from './common'
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -42,18 +43,10 @@ function PhotoTile({ photo, onOpen }: { photo: GalleryPhotoDto; onOpen: () => vo
 }
 
 export default function YearGallery({ compact = false }: { compact?: boolean }) {
-  const [data, setData] = useState<GalleryData | null>(null)
-  const [year, setYear] = useState<string>('')
-
-  useEffect(() => {
-    fetch('/api/public/gallery')
-      .then((r) => r.json())
-      .then((d: GalleryData) => {
-        setData(d)
-        if (d.years.length > 0) setYear(d.years[0].year)
-      })
-      .catch(() => setData({ years: [] }))
-  }, [])
+  const { data } = useCachedJson<GalleryData>('/api/public/gallery')
+  // null = user hasn't picked a year yet → show the latest one
+  const [pickedYear, setPickedYear] = useState<string | null>(null)
+  const year = pickedYear || data?.years[0]?.year || ''
 
   if (!data) return <Loading label="Loading memories..." />
   if (data.years.length === 0)
@@ -74,7 +67,7 @@ export default function YearGallery({ compact = false }: { compact?: boolean }) 
         {data.years.map((y) => (
           <button
             key={y.year}
-            onClick={() => setYear(y.year)}
+            onClick={() => setPickedYear(y.year)}
             className={`relative shrink-0 rounded-full px-6 py-2 text-sm font-bold transition-all ${
               year === y.year
                 ? 'bg-gradient-to-r from-red-700 to-red-600 text-white shadow-lg'

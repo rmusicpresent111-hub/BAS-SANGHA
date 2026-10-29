@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApp, type View } from '@/lib/store'
 import { apiFetch } from '@/lib/api'
+import { prefetch } from '@/lib/client-cache'
 import { enablePush, onForegroundMessage, pushLocallyEnabled } from '@/lib/push'
 import { useToast } from '@/hooks/use-toast'
 import WelcomeScreen from '@/components/app/WelcomeScreen'
@@ -47,6 +48,12 @@ export default function Page() {
       .catch(() => {})
       .finally(() => setBooted(true))
   }, [setUser, setBooted])
+
+  // warm the screen cache during the splash/welcome screen so the first tap
+  // on any tab renders instantly instead of waiting for the network
+  useEffect(() => {
+    prefetch(['/api/public/home', '/api/public/notices', '/api/public/gallery'])
+  }, [])
 
   // route guard: protected views need login
   useEffect(() => {
