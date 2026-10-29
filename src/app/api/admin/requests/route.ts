@@ -104,7 +104,7 @@ export async function PUT(req: NextRequest) {
 
 /** DELETE ?tab=member|tournament|drawing|blood&id= — ADMIN only, permanently remove one request. */
 export async function DELETE(req: NextRequest) {
-  const session = getUser(req)
+  const session = await getUser(req)
   if (session?.role !== 'ADMIN') return deny()
   const tab = (req.nextUrl.searchParams.get('tab') || '') as Tab
   const id = req.nextUrl.searchParams.get('id')

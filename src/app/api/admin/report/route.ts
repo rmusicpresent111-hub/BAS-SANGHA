@@ -68,7 +68,7 @@ async function buildRows(type: ReportType, from: Date, to: Date) {
  * records created inside the chosen date range. ADMIN only.
  */
 export async function GET(req: NextRequest) {
-  const session = getUser(req)
+  const session = await getUser(req)
   if (session?.role !== 'ADMIN') return deny()
   if (!rateLimit(`report:${clientIp(req)}`, 20, 10 * 60 * 1000))
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })

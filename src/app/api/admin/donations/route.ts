@@ -52,7 +52,7 @@ export async function PUT(req: NextRequest) {
 
 /** DELETE ?id= — ADMIN only, permanently remove one donation entry. */
 export async function DELETE(req: NextRequest) {
-  const session = getUser(req)
+  const session = await getUser(req)
   if (session?.role !== 'ADMIN') return deny()
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
