@@ -43,7 +43,7 @@ export default function HomeScreen() {
     setView(link as View)
   }
 
-  if (!data) return <div className="min-h-screen bg-[#eef0fa]"><Loading label="Loading Sangha..." /></div>
+  if (!data) return <div className="min-h-dvh bg-[#eef0fa]"><Loading label="Loading Sangha..." /></div>
 
   return (
     <MainShell>

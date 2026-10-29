@@ -120,7 +120,7 @@ export default function DrawingScreen() {
   }
 
   return (
-    <div className="bg-club flex min-h-screen flex-col">
+    <div className="bg-club flex min-h-dvh flex-col">
       <ScreenHeader title="Drawing Competition" subtitle="B.A.S Sangha • Estd 2021" onBack={() => setView('home')} accent="amber" />
 
       {/* hero banner */}

@@ -55,7 +55,7 @@ export default function Page() {
 
   if (!booted) {
     return (
-      <div className="splash-bg flex min-h-screen flex-col items-center justify-center gap-7">
+      <div className="splash-bg flex min-h-dvh flex-col items-center justify-center gap-7">
         <motion.div
           initial={{ opacity: 0, scale: 0.75 }}
           animate={{ opacity: 1, scale: 1 }}

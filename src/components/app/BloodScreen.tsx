@@ -109,7 +109,7 @@ export default function BloodScreen() {
   }
 
   return (
-    <div className="bg-club flex min-h-screen flex-col">
+    <div className="bg-club flex min-h-dvh flex-col">
       <ScreenHeader title="Blood Donation Camp" subtitle="রক্ত দিন — জীবন বাঁচান" onBack={() => setView('home')} accent="red" />
 
       {/* hero banner */}

@@ -42,7 +42,7 @@ export default function WelcomeScreen() {
   const enter = () => setView(user ? 'home' : 'auth')
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#150404] text-white">
+    <div className="relative min-h-dvh overflow-hidden bg-[#150404] text-white">
       <AnimatePresence mode="wait">
         {phase === 'splash' ? (
           /* ============ SPLASH (ref 3): glowing logo on near-black ============ */
@@ -83,7 +83,7 @@ export default function WelcomeScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.7 }}
-            className="relative flex min-h-screen flex-col"
+            className="relative flex min-h-dvh flex-col"
             onClick={enter}
             role="button"
             aria-label="Enter the app"
@@ -118,7 +118,7 @@ export default function WelcomeScreen() {
             ))}
 
             {/* content */}
-            <div className="relative z-10 flex min-h-screen flex-col items-center px-4 pb-8 pt-9 sm:pt-12">
+            <div className="relative z-10 flex min-h-dvh flex-col items-center px-4 pb-8 pt-9 sm:pt-12">
               {/* top: Bengali place + ESTD */}
               <motion.div
                 initial={{ opacity: 0, y: -16 }}

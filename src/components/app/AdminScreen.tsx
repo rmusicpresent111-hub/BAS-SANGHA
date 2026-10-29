@@ -301,7 +301,7 @@ export default function AdminScreen() {
 
   if (!user || user.role !== 'ADMIN')
     return (
-      <div className="devotional-bg flex min-h-screen flex-col items-center justify-center gap-3 text-white">
+      <div className="devotional-bg flex min-h-dvh flex-col items-center justify-center gap-3 text-white">
         <ShieldCheck className="h-10 w-10 text-amber-400" />
         <p className="font-bold">Admin access only</p>
         <Button onClick={() => setView('auth')} variant="secondary" className="rounded-full">Go to Login</Button>
@@ -309,7 +309,7 @@ export default function AdminScreen() {
     )
 
   return (
-    <div className="min-h-screen bg-stone-100">
+    <div className="min-h-dvh bg-stone-100">
       {/* header */}
       <header className="sticky top-0 z-40 bg-gradient-to-r from-stone-900 via-stone-800 to-stone-900 shadow-lg">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">

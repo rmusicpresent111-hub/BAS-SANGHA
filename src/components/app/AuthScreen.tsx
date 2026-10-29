@@ -138,7 +138,7 @@ export default function AuthScreen() {
     'h-12 w-full rounded-xl bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 text-base font-bold text-white shadow-[0_10px_30px_rgba(234,88,12,0.4)] transition-all hover:brightness-110 active:scale-[0.99]'
 
   return (
-    <div className="devotional-bg relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-10">
+    <div className="devotional-bg relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-10">
       {/* faint Kali backdrop */}
       <div className="pointer-events-none absolute inset-0">
         <Image

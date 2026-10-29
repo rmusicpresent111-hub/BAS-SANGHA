@@ -139,7 +139,7 @@ export default function MemberJoinScreen() {
   }
 
   return (
-    <div className="bg-club flex min-h-screen flex-col">
+    <div className="bg-club flex min-h-dvh flex-col">
       <ScreenHeader title="Member Join" subtitle="Dekchin Gobindapur B.A.S Sangha" onBack={() => setView('home')} accent="blue" />
 
       <main className="relative mx-auto w-full max-w-2xl flex-1 px-4 py-5">

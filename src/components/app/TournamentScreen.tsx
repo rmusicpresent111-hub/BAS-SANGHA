@@ -117,7 +117,7 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
   const fee = event?.fee ?? 500
 
   return (
-    <div className="bg-club flex min-h-screen flex-col">
+    <div className="bg-club flex min-h-dvh flex-col">
       <ScreenHeader title={title} subtitle="B.A.S Sangha • Estd 2021" onBack={() => setView('home')} accent="blue" />
 
       {/* hero banner */}
