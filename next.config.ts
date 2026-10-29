@@ -64,6 +64,11 @@ const nextConfig: NextConfig = {
       { pathname: "/_next/static/media/**", search: "" },
     ],
   },
+  // Ship the restore backup with the restore-demo serverless function
+  // (read at runtime with fs, not bundled as a JS literal).
+  outputFileTracingIncludes: {
+    "/api/admin/restore-demo": ["./src/app/api/admin/restore-demo/restore-data.json"],
+  },
   async headers() {
     return [
       {

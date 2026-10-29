@@ -1445,12 +1445,28 @@ function SettingsTab() {
   const { toast } = useToast()
   const [settings, setSettings] = useState<Record<string, string> | null>(null)
   const [busy, setBusy] = useState(false)
+  const [restoreBusy, setRestoreBusy] = useState(false)
 
   useEffect(() => {
     apiFetch('/api/admin/settings').then((r) => r.json()).then((d) => setSettings(d.settings || {})).catch(() => setSettings({}))
   }, [])
 
   if (!settings) return <Loading />
+
+  const runRestore = async () => {
+    if (!confirm('ডেমো কনটেন্ট ফিরিয়ে আনবেন?\n\nHome page-এর ডেমো banner, পুজো কমিটি/খেলা টুর্নামেন্ট button, শ্রী শ্রী শ্যামা পুজার banner, কমিটি সদস্য (ছবিসহ), নোটিশ, ইভেন্ট ও গ্যালারি ফিরে আসবে।\n\nআপনার নিজের যোগ করা banner/সদস্য/setting কিছুই মুছবে না।')) return
+    setRestoreBusy(true)
+    try {
+      const res = await apiFetch('/api/admin/restore-demo', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast({ title: data.message || 'রিস্টোর সম্পন্ন ✓' })
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Restore failed', variant: 'destructive' })
+    } finally {
+      setRestoreBusy(false)
+    }
+  }
 
   const save = async () => {
     setBusy(true)
@@ -1498,6 +1514,16 @@ function SettingsTab() {
       <Button disabled={busy} onClick={save} className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
         <Save className="mr-1 h-4 w-4" /> {busy ? 'Saving...' : 'Save Settings'}
       </Button>
+
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
+        <p className="text-sm font-black text-blue-900">♻️ ডেমো কনটেন্ট রিস্টোর</p>
+        <p className="mt-1 text-xs leading-relaxed text-blue-900/80">
+          Home page-এর ডেমো banner, পুজো কমিটি / খেলা টুর্নামেন্ট button, শ্রী শ্রী শ্যামা পুজার banner, কমিটি সদস্য (আপলোড করা ছবিসহ), নোটিশ, ইভেন্ট ও গ্যালারি ফিরিয়ে আনে। আপনার নিজের যোগ করা কোনো banner, সদস্য বা setting মুছবে না — দ্বিতীয়বার চাপলেও কিছু নষ্ট হবে না।
+        </p>
+        <Button disabled={restoreBusy} onClick={runRestore} className="mt-3 rounded-lg bg-blue-900 text-white hover:bg-blue-800">
+          <Sparkles className="mr-1 h-4 w-4" /> {restoreBusy ? 'ফিরিয়ে আনা হচ্ছে...' : 'এখনই রিস্টোর করুন'}
+        </Button>
+      </div>
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
         <p className="font-black">ℹ️ Info</p>
         <p className="mt-1">
