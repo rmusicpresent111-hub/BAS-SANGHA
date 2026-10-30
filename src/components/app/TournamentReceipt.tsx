@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import type { TournamentRequestDto } from '@/lib/types'
 import { extraDataRows } from '@/lib/extra-data'
-import { downloadNodePng, nodeToPngFile, shareReceipt } from '@/lib/receipt-share'
+import { downloadNodePdf, nodeToJpegFile, shareReceipt } from '@/lib/receipt-share'
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   WAITING: { label: 'UNDER VERIFICATION', cls: 'bg-amber-100 text-amber-800' },
@@ -29,9 +29,10 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
 }
 
 /**
- * Printable Cricket/Football entry receipt (B.A.S Sangha) — download as PNG +
- * WhatsApp-first share. Shown on the tournament status step once the entry
- * fee is submitted (QR or Cash) — every value comes from the server.
+ * Printable Cricket/Football entry receipt (B.A.S Sangha) — download as PDF
+ * (device storage) + WhatsApp JPEG share. Shown on the tournament status step
+ * once the entry fee is submitted (QR or Cash) — every value comes from the
+ * server.
  */
 export default function TournamentReceipt({
   request,
@@ -83,15 +84,17 @@ export default function TournamentReceipt({
     .filter(Boolean)
     .join('\n')
 
-  const filename = `BAS-${isCricket ? 'Cricket' : 'Football'}-${teamId}.png`
+  const pdfName = `BAS-${isCricket ? 'Cricket' : 'Football'}-${teamId}.pdf`
+  const jpgName = `BAS-${isCricket ? 'Cricket' : 'Football'}-${teamId}.jpg`
 
+  /** Download the receipt as a PDF file → saved to the device storage. */
   const handleDownload = async () => {
     const node = ref.current
     if (!node || downloading) return
     setDownloading(true)
     try {
-      await downloadNodePng(node, filename)
-      toast({ title: 'Receipt downloaded ✓' })
+      await downloadNodePdf(node, pdfName)
+      toast({ title: 'Receipt PDF saved to device ✓ (Downloads folder)' })
     } catch {
       toast({ title: 'Download failed — please try again', variant: 'destructive' })
     } finally {
@@ -105,7 +108,7 @@ export default function TournamentReceipt({
     if (!node || sharing) return
     setSharing(true)
     try {
-      const file = await nodeToPngFile(node, filename)
+      const file = await nodeToJpegFile(node, jpgName)
       const outcome = await shareReceipt({
         file,
         title: `${isCricket ? 'Cricket' : 'Football'} Tournament Receipt — B.A.S Sangha`,

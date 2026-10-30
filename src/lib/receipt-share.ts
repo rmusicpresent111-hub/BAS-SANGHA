@@ -1,38 +1,63 @@
 'use client'
 
-import { toPng } from 'html-to-image'
+import { toJpeg, toPng } from 'html-to-image'
+import { jsPDF } from 'jspdf'
 
 /**
  * Shared helpers for payment receipts (Donation / Drawing / Tournament):
- * render the receipt DOM node to a crisp PNG, download it, and share it
- * with a WhatsApp-first chain. Everything here is client-side only.
+ * render the receipt DOM node → a real PDF file for download (saved to the
+ * device storage) and a JPEG image for WhatsApp-first sharing.
+ * Everything here is client-side only.
  */
 
 /** Decode a data: URL into a File without fetch (works in every WebView). */
-function dataUrlToFile(dataUrl: string, filename: string): File {
-  const [meta, b64] = dataUrl.split(',')
-  const mime = /:(.*?);/.exec(meta)?.[1] || 'image/png'
+function dataUrlToFile(dataUrl: string, filename: string, mime: string): File {
+  const [, b64] = dataUrl.split(',')
   const bin = atob(b64)
   const bytes = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
   return new File([bytes], filename, { type: mime })
 }
 
-/** Render a DOM node to a PNG File (3× pixel ratio for WhatsApp/print). */
-export async function nodeToPngFile(node: HTMLElement, filename: string): Promise<File> {
-  const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
-  return dataUrlToFile(dataUrl, filename)
+/** Load a data: URL into an Image so its exact pixel size can be read. */
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('receipt image decode failed'))
+    img.src = dataUrl
+  })
 }
 
-/** Trigger a browser download of a DOM node rendered as a PNG image. */
-export async function downloadNodePng(node: HTMLElement, filename: string): Promise<void> {
+/**
+ * Render a receipt node and download it as a real PDF file — the PDF page is
+ * sized exactly like the receipt (1 page, 1:1), so it saves cleanly to the
+ * device storage (Downloads folder) and prints without any scaling.
+ */
+export async function downloadNodePdf(node: HTMLElement, filename: string): Promise<void> {
   const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
-  const link = document.createElement('a')
-  link.href = dataUrl
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
+  const img = await loadImage(dataUrl)
+  const w = img.naturalWidth
+  const h = img.naturalHeight
+  const pdf = new jsPDF({
+    orientation: w > h ? 'landscape' : 'portrait',
+    unit: 'px',
+    format: [w, h],
+    compress: true,
+  })
+  pdf.addImage(dataUrl, 'PNG', 0, 0, w, h)
+  pdf.save(filename)
+}
+
+/** Render a receipt node to a JPEG File (3× crisp, white background). */
+export async function nodeToJpegFile(node: HTMLElement, filename: string): Promise<File> {
+  const dataUrl = await toJpeg(node, {
+    quality: 0.95,
+    pixelRatio: 3,
+    backgroundColor: '#ffffff',
+    cacheBust: true,
+  })
+  return dataUrlToFile(dataUrl, filename, 'image/jpeg')
 }
 
 export type ShareOutcome = 'shared' | 'whatsapp' | 'copied' | 'abort' | 'failed'
@@ -40,7 +65,7 @@ export type ShareOutcome = 'shared' | 'whatsapp' | 'copied' | 'abort' | 'failed'
 /**
  * Share a receipt image — WhatsApp first:
  *
- *  1. Web Share API with the PNG file → native share sheet (WhatsApp one tap
+ *  1. Web Share API with the JPEG file → native share sheet (WhatsApp one tap
  *     away, image attached). This is the only web path that can attach an image.
  *  2. Direct WhatsApp — `whatsapp://send?text=…` opens the WhatsApp app with
  *     the receipt details prefilled (an image cannot be attached without the

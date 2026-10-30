@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { BadgeCheck, CalendarDays, Download, GraduationCap, IndianRupee, Loader2, Palette, Phone, Share2, User, Users, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
-import { downloadNodePng, nodeToPngFile, shareReceipt } from '@/lib/receipt-share'
+import { downloadNodePdf, nodeToJpegFile, shareReceipt } from '@/lib/receipt-share'
 import { formatINR } from './common'
 
 export interface DrawingReceiptData {
@@ -30,8 +30,9 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
 
 /**
  * Printable Drawing Competition entry receipt (B.A.S Sangha) with
- * download-as-PNG + Web Share. Shown in the user's Drawing screen after the
- * admin approves the paid entry — every value comes from the server.
+ * download-as-PDF (device storage) + WhatsApp JPEG share. Shown in the user's
+ * Drawing screen after the admin approves the paid entry — every value comes
+ * from the server.
  */
 export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -63,15 +64,17 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
     .filter(Boolean)
     .join('\n')
 
-  const filename = `BAS-Drawing-${shortId}.png`
+  const pdfName = `BAS-Drawing-${shortId}.pdf`
+  const jpgName = `BAS-Drawing-${shortId}.jpg`
 
+  /** Download the receipt as a PDF file → saved to the device storage. */
   const handleDownload = async () => {
     const node = ref.current
     if (!node || downloading) return
     setDownloading(true)
     try {
-      await downloadNodePng(node, filename)
-      toast({ title: 'Receipt downloaded ✓' })
+      await downloadNodePdf(node, pdfName)
+      toast({ title: 'Receipt PDF saved to device ✓ (Downloads folder)' })
     } catch {
       toast({ title: 'Download failed — please try again', variant: 'destructive' })
     } finally {
@@ -85,7 +88,7 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
     if (!node || sharing) return
     setSharing(true)
     try {
-      const file = await nodeToPngFile(node, filename)
+      const file = await nodeToJpegFile(node, jpgName)
       const outcome = await shareReceipt({
         file,
         title: 'Drawing Competition Receipt — B.A.S Sangha',

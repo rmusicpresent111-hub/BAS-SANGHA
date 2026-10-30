@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { BadgeCheck, CalendarDays, Download, Fingerprint, IndianRupee, Loader2, Phone, Share2, User, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
-import { downloadNodePng, nodeToPngFile, shareReceipt } from '@/lib/receipt-share'
+import { downloadNodePdf, nodeToJpegFile, shareReceipt } from '@/lib/receipt-share'
 import { formatINR } from './common'
 
 export interface DonationReceiptData {
@@ -27,9 +27,10 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
 }
 
 /**
- * Printable donation receipt (B.A.S Sangha) with download-as-PNG.
- * Shared by the donor flow (DonationDialog) and the Admin "Donations" tab —
- * every value comes from the server, never from client input.
+ * Printable donation receipt (B.A.S Sangha) with download-as-PDF (device
+ * storage) + WhatsApp JPEG share. Shared by the donor flow (DonationDialog)
+ * and the Admin "Donations" tab — every value comes from the server, never
+ * from client input.
  */
 export default function DonationReceipt({ donation, compact }: { donation: DonationReceiptData; compact?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -60,15 +61,17 @@ export default function DonationReceipt({ donation, compact }: { donation: Donat
     .filter(Boolean)
     .join('\n')
 
-  const filename = `BAS-Donation-${donation.orderId}.png`
+  const pdfName = `BAS-Donation-${donation.orderId}.pdf`
+  const jpgName = `BAS-Donation-${donation.orderId}.jpg`
 
+  /** Download the receipt as a PDF file → saved to the device storage. */
   const handleDownload = async () => {
     const node = ref.current
     if (!node || downloading) return
     setDownloading(true)
     try {
-      await downloadNodePng(node, filename)
-      toast({ title: 'Receipt downloaded ✓' })
+      await downloadNodePdf(node, pdfName)
+      toast({ title: 'Receipt PDF saved to device ✓ (Downloads folder)' })
     } catch {
       toast({ title: 'Download failed — please try again', variant: 'destructive' })
     } finally {
@@ -82,7 +85,7 @@ export default function DonationReceipt({ donation, compact }: { donation: Donat
     if (!node || sharing) return
     setSharing(true)
     try {
-      const file = await nodeToPngFile(node, filename)
+      const file = await nodeToJpegFile(node, jpgName)
       const outcome = await shareReceipt({
         file,
         title: 'Donation Receipt — B.A.S Sangha',
