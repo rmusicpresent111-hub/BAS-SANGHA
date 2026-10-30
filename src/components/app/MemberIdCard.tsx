@@ -1,12 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { toPng } from 'html-to-image'
 import { BadgeCheck, Download, IdCard, Loader2, MapPin, Phone, Star, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
-import { saveBlobToDevice } from '@/lib/receipt-share'
+import { dataUrlToBlob, saveBlobToDevice } from '@/lib/receipt-share'
 
 export interface MemberIdCardProps {
   name: string
@@ -32,14 +32,31 @@ export default function MemberIdCard({ name, phone, address, photoUrl, cardNumbe
   const cardRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const [downloading, setDownloading] = useState(false)
+  // broken photo (dead URL / 404) → fall back to the initials avatar so the
+  // card AND its download never break
+  const [photoFailed, setPhotoFailed] = useState(false)
+  useEffect(() => {
+    setPhotoFailed(false)
+  }, [photoUrl])
+  const showsPhoto = !!photoUrl && !photoFailed
 
   const handleDownload = async () => {
     const node = cardRef.current
     if (!node || downloading) return
     setDownloading(true)
     try {
-      const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
-      const blob = await (await fetch(dataUrl)).blob()
+      // imagePlaceholder: if the member photo can't be re-fetched during the
+      // capture, a transparent pixel is embedded instead of throwing —
+      // the download always succeeds.
+      const dataUrl = await toPng(node, {
+        pixelRatio: 3,
+        cacheBust: false,
+        imagePlaceholder:
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      })
+      // decode WITHOUT fetch() — fetch on a big data: URL fails on Android
+      // WebView ("Failed to fetch"); plain atob works everywhere
+      const blob = dataUrlToBlob(dataUrl)
       const outcome = await saveBlobToDevice(
         blob,
         `BAS-Member-ID-${cardNumber || 'card'}.png`,
@@ -115,10 +132,11 @@ export default function MemberIdCard({ name, phone, address, photoUrl, cardNumbe
               MEMBER
             </span>
 
-            {photoUrl ? (
+            {showsPhoto ? (
               <img
                 src={photoUrl}
                 alt={name || 'Member photo'}
+                onError={() => setPhotoFailed(true)}
                 className="h-[30cqw] w-[24cqw] shrink-0 self-center rounded-lg bg-stone-100 object-cover ring-2 ring-amber-400/70"
               />
             ) : (

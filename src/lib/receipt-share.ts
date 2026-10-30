@@ -76,10 +76,20 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(bin)
 }
 
-/** data: URL → Blob (keeps the mime type from the URL). */
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const res = await fetch(dataUrl)
-  return res.blob()
+/**
+ * data: URL → Blob WITHOUT fetch() — fetching a data: URL fails on some
+ * Android WebViews (and on any data: URL past ~2 MB, which ID cards with an
+ * embedded photo easily reach). Plain atob decoding works everywhere.
+ */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',')
+  const head = dataUrl.slice(0, comma)
+  const b64 = dataUrl.slice(comma + 1)
+  const mime = /:(.*?)[;]/.exec(head)?.[1] || 'application/octet-stream'
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
 }
 
 /** Load a data: URL into an Image so its exact pixel size can be read. */
@@ -100,7 +110,7 @@ export async function nodeToJpegFile(node: HTMLElement, filename: string): Promi
     backgroundColor: '#ffffff',
     cacheBust: true,
   })
-  const blob = await dataUrlToBlob(dataUrl)
+  const blob = dataUrlToBlob(dataUrl)
   return new File([blob], filename, { type: 'image/jpeg' })
 }
 
