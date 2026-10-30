@@ -73,8 +73,10 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
     if (!node || downloading) return
     setDownloading(true)
     try {
-      await downloadNodePdf(node, pdfName)
-      toast({ title: 'Receipt PDF saved to device ✓ (Downloads folder)' })
+      const outcome = await downloadNodePdf(node, pdfName)
+      if (outcome === 'saved') toast({ title: 'Receipt PDF saved to Downloads ✓' })
+      else if (outcome === 'shared') toast({ title: 'Receipt PDF ready — choose an app to save/share ✓' })
+      else toast({ title: 'Receipt PDF saved to device ✓ (Downloads folder)' })
     } catch {
       toast({ title: 'Download failed — please try again', variant: 'destructive' })
     } finally {
