@@ -1,12 +1,13 @@
 # Builds the B.A.S Sangha Android APK completely in the cloud.
 #
 # No Android Studio / JDK / SDK needed on any computer:
-#   1. The APK is signed as a release build using the keystore stored in the
-#      repo secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
-#      ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD).
-#   2. versionCode is auto-bumped to the GitHub run number, so every new APK
+#   1. Gradle builds a release APK (debug-signed intermediate — Gradle default).
+#   2. The APK is zipaligned and RE-SIGNED with the real release keystore using
+#      apksigner (from repo secrets: ANDROID_KEYSTORE_BASE64,
+#      ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD).
+#   3. versionCode is auto-bumped to the GitHub run number, so every new APK
 #      installs directly over the previously installed one (no uninstall).
-#   3. The finished APK is attached to a GitHub Release:
+#   4. The finished APK is attached to a GitHub Release:
 #      https://github.com/rmusicpresent111-hub/BAS-SANGHA/releases
 #      Anyone can download it from there — no login needed (public repo).
 #
@@ -54,41 +55,60 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Build signed release APK
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Build release APK (unsigned)
         run: |
           cd android
           chmod +x gradlew
           # auto-bump versionCode so updates always install over old versions
           sed -i "s/versionCode [0-9]\+/versionCode ${GITHUB_RUN_NUMBER}/" app/build.gradle
           sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${GITHUB_RUN_NUMBER}\"/" app/build.gradle
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/bas-sangha.keystore"
-            SIGNING_KEYSTORE_FILE="$GITHUB_WORKSPACE/bas-sangha.keystore" \
-              ./gradlew --no-daemon assembleRelease
-          else
-            echo "Keystore secret missing - falling back to debug APK"
-            ./gradlew --no-daemon assembleDebug
-          fi
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Verify keystore from secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/bas-sangha.keystore"
+          echo "keystore bytes: $(stat -c%s "$GITHUB_WORKSPACE/bas-sangha.keystore")"
+          echo "secret lengths: pw=${#ANDROID_KEYSTORE_PASSWORD} alias=${#ANDROID_KEY_ALIAS} keypw=${#ANDROID_KEY_PASSWORD}"
+          "$JAVA_HOME/bin/keytool" -list -keystore "$GITHUB_WORKSPACE/bas-sangha.keystore" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" 2>&1 | head -6
+
+      - name: Zipalign and sign with release key
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "build-tools: $BT"
+          IN=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          "$BT/zipalign" -f -p 4 "$IN" android/app/release-aligned.apk
+          "$BT/apksigner" sign \
+            --ks "$GITHUB_WORKSPACE/bas-sangha.keystore" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+            --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+            --out android/app/BAS-Sangha-signed.apk android/app/release-aligned.apk
+          "$BT/apksigner" verify android/app/BAS-Sangha-signed.apk
+          echo "APK signed and verified OK"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: BAS-Sangha-APK
-          path: android/app/build/outputs/apk/*/*.apk
+          path: android/app/BAS-Sangha-signed.apk
           if-no-files-found: error
 
       - name: Publish APK to GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          APK=$(ls android/app/build/outputs/apk/*/*.apk | head -1)
           TAG="apk-v1.0-r${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" "$APK#BAS-Sangha-v1.0.${GITHUB_RUN_NUMBER}.apk" \
+          gh release create "$TAG" "android/app/BAS-Sangha-signed.apk#BAS-Sangha-v1.0.${GITHUB_RUN_NUMBER}.apk" \
             --title "B.A.S Sangha Android App (build ${GITHUB_RUN_NUMBER})" \
             --notes "ডাউনলোড করে ইনস্টল করুন। পুরনো ভার্সনের উপরেই নতুন ভার্সন ইনস্টল হবে।" \
             --latest
