@@ -145,7 +145,8 @@ export default function MemberJoinScreen() {
     return fd
   }
 
-  const postRequest = async (fd: FormData): Promise<boolean> => {
+  /** quiet=true → no reload/toast: PaymentFlow shows the "Payment Received" screen itself */
+  const postRequest = async (fd: FormData, opts?: { quiet?: boolean }): Promise<boolean> => {
     setSaving(true)
     try {
       const res = await apiFetch('/api/member-request', { method: 'POST', body: fd })
@@ -154,8 +155,10 @@ export default function MemberJoinScreen() {
         toast({ title: data.error || 'Submission failed', variant: 'destructive' })
         return false
       }
-      await loadStatus()
-      toast({ title: 'Application submitted successfully! 🎉' })
+      if (!opts?.quiet) {
+        await loadStatus()
+        toast({ title: 'Application submitted successfully! 🎉' })
+      }
       return true
     } catch {
       toast({ title: 'Something went wrong', variant: 'destructive' })
@@ -173,7 +176,7 @@ export default function MemberJoinScreen() {
   }
 
   const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
-    const ok = await postRequest(buildFd(utr))
+    const ok = await postRequest(buildFd(utr), { quiet: true })
     return ok ? { ok: true } : { ok: false, error: 'Submission failed' }
   }
 
@@ -253,6 +256,7 @@ export default function MemberJoinScreen() {
             note="BAS Member Joining Fee"
             onSubmitUtr={submitUtr}
             onExpiredRefill={() => setStep('form')}
+            onReceived={loadStatus}
           />
         ) : (
           /* ---------- FORM ---------- */

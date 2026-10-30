@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { toPng } from 'html-to-image'
-import { Download, IdCard, Loader2, MapPin, Phone, User } from 'lucide-react'
+import { BadgeCheck, Download, IdCard, Loader2, MapPin, Phone, Star, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
@@ -13,6 +13,8 @@ export interface MemberIdCardProps {
   address: string
   photoUrl: string
   cardNumber: string
+  /** admin-approved member → gold premium seal on the card (default true) */
+  approved?: boolean
 }
 
 /**
@@ -25,7 +27,7 @@ export interface MemberIdCardProps {
  * instead of reflowing. html-to-image copies computed (px) styles into the
  * clone, so the exported PNG matches exactly what is on screen.
  */
-export default function MemberIdCard({ name, phone, address, photoUrl, cardNumber }: MemberIdCardProps) {
+export default function MemberIdCard({ name, phone, address, photoUrl, cardNumber, approved = true }: MemberIdCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const [downloading, setDownloading] = useState(false)
@@ -83,6 +85,20 @@ export default function MemberIdCard({ name, phone, address, photoUrl, cardNumbe
             </div>
           </div>
 
+          {/* Premium approved seal — gold stamp straddling the header/body seam */}
+          {approved && (
+            <motion.span
+              initial={{ scale: 0, rotate: -30 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 240, damping: 12, delay: 0.3 }}
+              className="absolute right-[3cqw] top-[20%] z-20 flex h-[16.5cqw] w-[16.5cqw] flex-col items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_28%,#fef9c3_0%,#fcd34d_45%,#d97706_100%)] shadow-[0_4px_12px_-2px_rgb(146_64_14/0.55)] ring-[0.8cqw] ring-white/95"
+            >
+              <span aria-hidden className="absolute inset-[0.9cqw] rounded-full border-[0.35cqw] border-dashed border-amber-800/45" />
+              <BadgeCheck className="size-[6.2cqw] text-amber-950" strokeWidth={2.6} />
+              <span className="mt-[0.4cqw] text-[2cqw] font-black uppercase leading-none tracking-[0.12em] text-amber-950">Approved</span>
+            </motion.span>
+          )}
+
           {/* Body */}
           <div className="relative flex min-h-0 flex-1 gap-[2.8cqw] px-[3cqw] py-[2.4cqw]">
             <span
@@ -124,9 +140,16 @@ export default function MemberIdCard({ name, phone, address, photoUrl, cardNumbe
                 </p>
               </div>
               {cardNumber ? (
-                <span className="inline-flex items-center gap-[1cqw] self-start rounded-md border border-amber-300 bg-amber-50 px-[2cqw] py-[0.7cqw] font-mono text-[3.4cqw] font-black leading-[1.2] text-amber-800">
-                  <IdCard className="size-[3.4cqw] shrink-0" />
-                  {cardNumber}
+                <span className="inline-flex items-stretch self-start overflow-hidden rounded-md border border-amber-300 leading-[1.2] shadow-sm">
+                  <span className="inline-flex items-center gap-[1cqw] bg-amber-50 px-[2cqw] py-[0.7cqw] font-mono text-[3.4cqw] font-black text-amber-800">
+                    <IdCard className="size-[3.4cqw] shrink-0" />
+                    {cardNumber}
+                  </span>
+                  {approved && (
+                    <span className="inline-flex items-center gap-[0.8cqw] bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 px-[1.8cqw] font-sans text-[2.7cqw] font-black uppercase tracking-wide text-amber-950">
+                      <Star className="size-[3cqw] fill-amber-950" /> Premium
+                    </span>
+                  )}
                 </span>
               ) : null}
             </div>
@@ -135,11 +158,11 @@ export default function MemberIdCard({ name, phone, address, photoUrl, cardNumbe
           {/* Footer band */}
           <div className="flex h-[9%] shrink-0 items-center justify-between bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 px-[3.4cqw]">
             <p className="text-[2.3cqw] font-semibold leading-none text-blue-100/90">Official Member ID</p>
-            <div aria-hidden className="flex items-center gap-[0.8cqw]">
-              <span className="h-[1cqw] w-[1cqw] rounded-full bg-amber-300/80" />
-              <span className="h-[1cqw] w-[1cqw] rounded-full bg-amber-300/60" />
-              <span className="h-[1cqw] w-[1cqw] rounded-full bg-amber-300/80" />
-            </div>
+            {approved && (
+              <span className="flex items-center gap-[0.8cqw] rounded-full bg-gradient-to-r from-amber-400 to-yellow-400 px-[1.8cqw] py-[0.5cqw] text-[1.9cqw] font-black uppercase tracking-wider text-blue-950 shadow-sm">
+                <Star className="size-[2.4cqw] fill-blue-950" /> Premium Member
+              </span>
+            )}
             <p className="text-[2.3cqw] leading-none text-amber-200/90">ভোরের আলো সংঘ</p>
           </div>
 

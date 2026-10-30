@@ -162,7 +162,9 @@ export default function DrawingScreen() {
     }
   }
 
-  /** STEP 2 — UTR submitted from the PaymentFlow; entry goes into the admin queue. */
+  /** STEP 2 — UTR submitted from the PaymentFlow; entry goes into the admin queue.
+   *  Quiet: PaymentFlow itself shows the "Payment Received" screen; loadStatus
+   *  runs when the user taps "Status দেখুন" (onReceived). */
   const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
     try {
       const res = await apiFetch('/api/drawing-request/pay', {
@@ -172,9 +174,6 @@ export default function DrawingScreen() {
       })
       const data = await res.json()
       if (!res.ok) return { ok: false, error: data.error }
-      await loadStatus()
-      setStep('status')
-      toast({ title: 'Payment submitted! Admin approval-এর জন্য অপেক্ষা করুন ✓' })
       return { ok: true }
     } catch {
       return { ok: false, error: 'Something went wrong' }
@@ -237,6 +236,7 @@ export default function DrawingScreen() {
             note={`Drawing Entry — ${r.name}`}
             onSubmitUtr={submitUtr}
             onExpiredRefill={() => setPayKey((k) => k + 1)}
+            onReceived={loadStatus}
           />
 
           <Button

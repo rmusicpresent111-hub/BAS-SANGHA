@@ -70,7 +70,13 @@ export default function MemberShowcase({ members }: { members: MemberDto[] }) {
             >
               <div className="relative h-16 w-16 shrink-0 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 p-[3px] shadow-md">
                 <div className="relative h-full w-full overflow-hidden rounded-full border-2 border-white bg-white">
-                  <Image src={m.photoUrl} alt={m.name} fill sizes="64px" className="object-cover" />
+                  {m.photoUrl ? (
+                    <Image src={m.photoUrl} alt={m.name} fill sizes="64px" className="object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center bg-amber-50 text-lg font-black text-amber-600">
+                      {(m.name || '?').charAt(0)}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="min-w-0 flex-1">

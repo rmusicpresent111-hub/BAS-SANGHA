@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  ArrowRight,
   BadgeCheck,
   CheckCircle2,
   Copy,
@@ -21,7 +22,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { formatINR } from './common'
 
-const TOTAL_SEC = 300 // 5 minutes
+const TOTAL_SEC = 240 // 4 minutes
 
 /** PhonePe-style sample screenshot mock (shows where the UTR number is). */
 function SampleShot({ index, amount }: { index: number; amount: number }) {
@@ -64,22 +65,26 @@ export default function PaymentFlow({
   note,
   onSubmitUtr,
   onExpiredRefill,
+  onReceived,
 }: {
   title: string
   amount: number
   note: string
   onSubmitUtr: (utr: string) => Promise<{ ok: boolean; error?: string }>
   onExpiredRefill: () => void
+  /** called when the user taps "Status দেখুন" on the Payment Received screen */
+  onReceived?: () => void
 }) {
   const { toast } = useToast()
   const [upiId, setUpiId] = useState('')
   const [upiIntent, setUpiIntent] = useState('')
   const [qr, setQr] = useState('')
-  const [qrOpen, setQrOpen] = useState(false)
   const [seconds, setSeconds] = useState(TOTAL_SEC)
   const [expired, setExpired] = useState(false)
   const [utr, setUtr] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [received, setReceived] = useState(false) // UTR accepted → "Payment Received" screen
+  const [submittedUtr, setSubmittedUtr] = useState('')
   // return-detection from the UPI payment app (PhonePe/GPay/Paytm)
   const wentToUpi = useRef(false)
   const [returnPrompt, setReturnPrompt] = useState(false)
@@ -140,9 +145,9 @@ export default function PaymentFlow({
     }
   }, [])
 
-  // countdown
+  // countdown (paused once the payment is received — the page is done)
   useEffect(() => {
-    if (expired) return
+    if (expired || received) return
     const t = setInterval(() => {
       setSeconds((s) => {
         if (s <= 1) {
@@ -154,7 +159,7 @@ export default function PaymentFlow({
       })
     }, 1000)
     return () => clearInterval(t)
-  }, [expired])
+  }, [expired, received])
 
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0')
   const ss = String(seconds % 60).padStart(2, '0')
@@ -169,11 +174,56 @@ export default function PaymentFlow({
     setSubmitting(true)
     const result = await onSubmitUtr(utr.trim())
     setSubmitting(false)
-    if (!result.ok) {
+    if (result.ok) {
+      setSubmittedUtr(utr.trim())
+      setReceived(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
       toast({ title: result.error || 'Submission failed', variant: 'destructive' })
     }
   }
 
+  /* ---------- PAYMENT RECEIVED — UTR accepted, admin review pending ---------- */
+  if (received) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="relative overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-b from-emerald-50 via-white to-white p-8 text-center shadow-lg"
+      >
+        <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-lime-400 to-emerald-500" />
+        <motion.span
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 14 }}
+          className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 shadow-inner"
+        >
+          <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+        </motion.span>
+        <h3 className="mt-4 text-2xl font-black text-emerald-900">Payment Received ✓</h3>
+        <p className="mx-auto mt-2 max-w-sm text-sm font-medium leading-relaxed text-emerald-700">
+          আপনার payment সফলভাবে জমা হয়েছে — {title} ({formatINR(amount)})
+        </p>
+        <div className="mx-auto mt-4 w-fit rounded-xl bg-white px-5 py-2.5 shadow-sm ring-1 ring-emerald-100">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">UTR Number</p>
+          <p className="font-mono text-sm font-black tracking-widest text-stone-800">{submittedUtr}</p>
+        </div>
+        <p className="mx-auto mt-4 max-w-xs text-[11px] leading-relaxed text-stone-500">
+          এখন admin verification-এর অপেক্ষায় — approve/reject হলে আপনার status এখানেই দেখতে পাবেন।
+        </p>
+        {onReceived && (
+          <Button
+            onClick={onReceived}
+            className="mt-5 rounded-full bg-gradient-to-r from-emerald-600 to-emerald-500 px-8 py-5 font-bold text-white shadow-md hover:from-emerald-700 hover:to-emerald-600"
+          >
+            আপনার Status দেখুন <ArrowRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        )}
+      </motion.div>
+    )
+  }
+
+  /* ---------- EXPIRED ---------- */
   if (expired) {
     return (
       <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} className="rounded-3xl border border-red-200 bg-red-50 p-8 text-center shadow-inner">
@@ -182,7 +232,7 @@ export default function PaymentFlow({
         </div>
         <h3 className="mt-4 text-xl font-black text-red-800">Page Expired!</h3>
         <p className="mx-auto mt-2 max-w-xs text-sm text-red-600">
-          The 5 minute payment window is over. Please fill up the form again to start a new payment.
+          The 4 minute payment window is over. Please fill up the form again to start a new payment.
         </p>
         <Button onClick={onExpiredRefill} className="mt-5 rounded-full bg-gradient-to-r from-red-700 to-red-600 px-8 font-bold text-white hover:from-red-800 hover:to-red-700">
           Fill Form Again
@@ -193,43 +243,54 @@ export default function PaymentFlow({
 
   return (
     <div className="space-y-5">
-      {/* payment card — UPI app deep link (no QR) */}
+      {/* payment card — scanner + UPI ID, 4-minute countdown */}
       <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-200 bg-white p-5 shadow-lg">
         <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-lime-400 to-emerald-500" />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-emerald-100 p-2">
-              <Smartphone className="h-5 w-5 text-emerald-700" />
+              <QrCode className="h-5 w-5 text-emerald-700" />
             </span>
             <div>
-              <h3 className="text-sm font-black text-stone-900">Pay via UPI App</h3>
-              <p className="text-[11px] text-stone-500">PhonePe / GPay / Paytm / any UPI app</p>
+              <h3 className="text-sm font-black text-stone-900">Scan & Pay</h3>
+              <p className="text-[11px] text-stone-500">{title}</p>
             </div>
           </div>
-          {/* countdown */}
+          {/* 4-minute countdown */}
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 font-black tabular-nums ${danger ? 'animate-pulse bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
             <Timer className="h-4 w-4" />
             <span className="text-sm">{mm}:{ss}</span>
           </div>
         </div>
 
-        <p className="mt-3 text-center text-xs font-medium text-stone-500">{title}</p>
-        <p className="text-center text-3xl font-black tracking-tight text-stone-900">{formatINR(amount)}</p>
+        <p className="mt-3 text-center text-3xl font-black tracking-tight text-stone-900">{formatINR(amount)}</p>
 
-        {upiIntent && (
-          <Button
-            type="button"
-            onClick={() => {
-              wentToUpi.current = true
-              window.location.href = upiIntent
-              toast({ title: 'Opening your payment app…', description: 'GPay / PhonePe / Paytm — যেটা আছে সেটাই খুলবে' })
-            }}
-            className="mx-auto mt-4 flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-5 text-base font-bold text-white shadow-md hover:from-emerald-700 hover:to-emerald-600 active:scale-[0.99]"
-          >
-            <Smartphone className="mr-2 h-5 w-5" /> Pay {formatINR(amount)} via UPI App
-          </Button>
+        {/* QR scanner — always visible, viewfinder style */}
+        {qr && (
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="mt-4">
+            <div className="relative mx-auto w-fit rounded-xl bg-white p-2.5 shadow-md ring-2 ring-emerald-200">
+              {/* scanner corner brackets */}
+              <span aria-hidden className="absolute -left-1.5 -top-1.5 h-5 w-5 rounded-tl-md border-l-[3px] border-t-[3px] border-emerald-600" />
+              <span aria-hidden className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-tr-md border-r-[3px] border-t-[3px] border-emerald-600" />
+              <span aria-hidden className="absolute -bottom-1.5 -left-1.5 h-5 w-5 rounded-bl-md border-b-[3px] border-l-[3px] border-emerald-600" />
+              <span aria-hidden className="absolute -bottom-1.5 -right-1.5 h-5 w-5 rounded-br-md border-b-[3px] border-r-[3px] border-emerald-600" />
+              <img src={qr} alt="UPI payment QR code — amount pre-filled" className="h-48 w-48 rounded-lg" />
+              {/* moving scan line */}
+              <motion.span
+                aria-hidden
+                initial={{ top: '8%' }}
+                animate={{ top: ['8%', '88%', '8%'] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute inset-x-3 h-0.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgb(16_185_129/0.8)]"
+              />
+            </div>
+            <p className="mx-auto mt-2.5 max-w-xs text-center text-[11px] font-semibold leading-relaxed text-stone-500">
+              যেকোনো UPI app (PhonePe / GPay / Paytm) দিয়ে এই QR <b>scan</b> করুন — {formatINR(amount)} auto-filled থাকবে
+            </p>
+          </motion.div>
         )}
 
+        {/* UPI ID — tap to copy */}
         {upiId && (
           <button
             onClick={() => {
@@ -239,7 +300,22 @@ export default function PaymentFlow({
             className="mx-auto mt-3 flex items-center gap-1.5 rounded-full bg-stone-100 px-4 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-200"
           >
             <Copy className="h-3.5 w-3.5" /> {upiId}
+            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700">TAP TO COPY</span>
           </button>
+        )}
+
+        {upiIntent && (
+          <Button
+            type="button"
+            onClick={() => {
+              wentToUpi.current = true
+              window.location.href = upiIntent
+              toast({ title: 'Opening your payment app…', description: 'GPay / PhonePe / Paytm — যেটা আছে সেটাই খুলবে' })
+            }}
+            className="mx-auto mt-4 flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-4 text-sm font-bold text-white shadow-md hover:from-emerald-700 hover:to-emerald-600 active:scale-[0.99]"
+          >
+            <Smartphone className="mr-2 h-5 w-5" /> না হলে — UPI App-এ সরাসরি Pay করুন
+          </Button>
         )}
 
         {/* troubleshooting tip — PhonePe sometimes covers the Pay button with a banner */}
@@ -247,7 +323,7 @@ export default function PaymentFlow({
           <p className="flex items-start gap-1.5">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
             <span>
-              Payment app-এ <b>Pay button দেখা না গেলে</b> — নিচে কোনো banner/notice থাকলে আগে <b>DISMISS</b> চাপুন, তারপর Pay button দেখাবে।
+              UPI app-এ <b>Pay button দেখা না গেলে</b> — নিচে কোনো banner/notice থাকলে আগে <b>DISMISS</b> চাপুন, তারপর Pay button দেখাবে।
             </span>
           </p>
           <p className="mt-1.5 flex items-start gap-1.5">
@@ -258,38 +334,6 @@ export default function PaymentFlow({
           </p>
         </div>
 
-        {/* QR fallback — for apps whose UPI Risk Policy blocks deep links (Paytm) */}
-        {qr && (
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => setQrOpen((v) => !v)}
-              aria-expanded={qrOpen}
-              className="mx-auto flex items-center gap-1.5 rounded-full bg-amber-100 px-4 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-200"
-            >
-              <QrCode className="h-3.5 w-3.5" />
-              {qrOpen ? 'QR লুকান' : 'Paytm-এ alert দেখলে — QR scan করুন'}
-            </button>
-            {qrOpen && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-3 overflow-hidden"
-              >
-                <div className="mx-auto w-fit rounded-2xl border-2 border-amber-200 bg-white p-3 shadow-sm">
-                  <img src={qr} alt="UPI payment QR code — amount pre-filled" className="h-44 w-44 rounded-lg" />
-                  <p className="mt-2 max-w-[190px] text-center text-[10px] font-medium leading-relaxed text-stone-500">
-                    যেকোনো UPI app (Paytm / GPay / PhonePe) দিয়ে এই QR scan করুন — ₹{amount} auto-filled থাকবে
-                  </p>
-                </div>
-                <p className="mx-auto mt-2 flex max-w-xs items-start gap-1.5 rounded-xl bg-blue-50 px-3 py-2 text-center text-[10px] font-medium leading-relaxed text-blue-900">
-                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  Paytm-এ “Payment Alert / UPI Risk Policy” দেখলে ভয় পাবেন না — ওটা Paytm-এর নিজের security warning। GPay বা PhonePe দিয়ে pay করুন, অথবা উপরের QR scan করুন।
-                </p>
-              </motion.div>
-            )}
-          </div>
-        )}
         <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-stone-400">
           <Wallet className="h-3.5 w-3.5" /> আপনার payment app-এ {formatINR(amount)} pay করুন — payment successful হলে UTR number পাবেন
         </p>
@@ -382,7 +426,7 @@ export default function PaymentFlow({
       </form>
 
       <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-[11px] text-stone-400">
-        <Hourglass className="h-3.5 w-3.5" /> Submit এর পর আপনার status “Waiting” থাকবে — admin approve/reject করলে এখানেই দেখতে পাবেন।
+        <Hourglass className="h-3.5 w-3.5" /> Submit করলেই “Payment Received” দেখাবে — তারপর admin approve/reject করলে status এখানেই আসবে।
       </p>
     </div>
   )

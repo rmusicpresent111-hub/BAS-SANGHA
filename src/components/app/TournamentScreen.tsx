@@ -116,7 +116,7 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
     setStep('pay')
   }
 
-  const postRequest = async (payload: Record<string, unknown>): Promise<boolean> => {
+  const postRequest = async (payload: Record<string, unknown>, opts?: { quiet?: boolean }): Promise<boolean> => {
     setSaving(true)
     try {
       const res = await apiFetch('/api/tournament-request', {
@@ -129,8 +129,11 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
         toast({ title: data.error || 'Submission failed', variant: 'destructive' })
         return false
       }
-      await loadStatus()
-      toast({ title: 'Team registered successfully! 🏆' })
+      // quiet=true → no reload/toast: PaymentFlow shows the "Payment Received" screen itself
+      if (!opts?.quiet) {
+        await loadStatus()
+        toast({ title: 'Team registered successfully! 🏆' })
+      }
       return true
     } catch {
       toast({ title: 'Something went wrong', variant: 'destructive' })
@@ -153,7 +156,7 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
     const built = buildExtraPayload(parseFormFields(event?.formFields), extraValues)
     if (!built.ok) return { ok: false, error: `"${built.missing}" পূরণ করুন` }
     const extra = built.data ? { extraData: built.data } : {}
-    const ok = await postRequest({ ...form, type, paymentMethod: 'QR', utr, ...extra })
+    const ok = await postRequest({ ...form, type, paymentMethod: 'QR', utr, ...extra }, { quiet: true })
     return ok ? { ok: true } : { ok: false, error: 'Submission failed' }
   }
 
@@ -221,6 +224,7 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
             note={`BAS ${title} Entry`}
             onSubmitUtr={submitUtr}
             onExpiredRefill={() => setStep('form')}
+            onReceived={loadStatus}
           />
         ) : (
           <div className="relative z-10 space-y-4">

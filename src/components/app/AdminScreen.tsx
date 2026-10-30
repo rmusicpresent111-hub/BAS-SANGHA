@@ -262,7 +262,21 @@ function RequestCard({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast({ title: status === 'APPROVED' ? 'Approved ✓' : 'Rejected' })
+      if (status === 'APPROVED') {
+        if (data?.committeeSync === 'added')
+          toast({
+            title: 'Approved ✓ — কমিটি তালিকায় যোগ হয়েছে',
+            description: 'নাম, ফোন ও ছবি committee list-এ auto যোগ হয়েছে',
+          })
+        else if (data?.committeeSync === 'duplicate')
+          toast({
+            title: 'Approved ✓ — committee-তে already আছে',
+            description: 'একই নাম বা ফোন number আগে থাকায় duplicate যোগ হয়নি',
+          })
+        else toast({ title: 'Approved ✓' })
+      } else {
+        toast({ title: 'Rejected' })
+      }
       onChanged()
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : 'Failed', variant: 'destructive' })

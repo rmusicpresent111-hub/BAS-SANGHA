@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { ensureDrawingColumns } from '@/lib/drawing-migrate'
 import { ensureFormColumns } from '@/lib/form-migrate'
+import { syncApprovedMemberToCommittee } from '@/lib/committee-sync'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -88,7 +89,18 @@ export async function PUT(req: NextRequest) {
         if (current && !current.cardNumber) data.cardNumber = await generateCardNumber()
       }
       const r = await db.memberRequest.update({ where: { id }, data })
-      return NextResponse.json({ request: r })
+      // approved members join the public committee list automatically
+      // (same name/phone already there → silently skipped, no duplicates)
+      let committeeSync: 'added' | 'duplicate' | 'skipped' | null = null
+      if (r.status === 'APPROVED') {
+        try {
+          committeeSync = await syncApprovedMemberToCommittee(r)
+        } catch (syncErr) {
+          // approval must not fail because of the committee sync
+          console.error('committee sync failed', syncErr)
+        }
+      }
+      return NextResponse.json({ request: r, committeeSync })
     }
     if (tab === 'tournament') {
       const r = await db.tournamentRequest.update({ where: { id }, data: { status, ...(note !== undefined ? { note } : {}) } })
