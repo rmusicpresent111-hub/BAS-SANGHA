@@ -2,6 +2,7 @@
 
 import { toPng } from 'html-to-image'
 import { jsPDF } from 'jspdf'
+import { saveBlobToDevice } from '@/lib/receipt-share'
 
 /**
  * Render an on-screen DOM node (A4-width report card) into a real PDF file.
@@ -36,5 +37,7 @@ export async function downloadNodeAsPdf(node: HTMLElement, filename: string): Pr
     // slide the same full image up by p pages and clip to the page window
     pdf.addImage(dataUrl, 'PNG', 0, -p * A4_H_MM, pageW, img.height / pxPerMm, undefined, 'FAST')
   }
-  pdf.save(filename)
+  // APK → straight into the device Downloads folder (native MediaStore);
+  // browser → standard download. Same path as the receipts.
+  await saveBlobToDevice(pdf.output('blob'), filename, 'application/pdf')
 }

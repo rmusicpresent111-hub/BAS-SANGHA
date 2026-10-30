@@ -5,22 +5,26 @@ import { jsPDF } from 'jspdf'
 import { registerPlugin } from '@capacitor/core'
 
 /**
- * Shared helpers for payment receipts (Donation / Drawing / Tournament):
+ * Shared helpers for payment receipts (Donation / Drawing / Tournament),
+ * the member ID card and the admin reports:
  *
- *  • Download  → a real PDF file (page sized 1:1 with the receipt).
- *      – Inside the Capacitor Android app the WebView cannot download blobs,
- *        so the PDF bytes are written straight into the device Downloads
- *        folder through a small native MediaStore plugin (no permission
- *        needed on Android 10+). Old devices fall back to cache + share.
- *      – On the website the browser's own download flow is used.
+ *  • Download → a real file saved straight into the device's Downloads
+ *    folder (Photos/Files app → Downloads). Inside the Capacitor Android
+ *    app the WebView cannot download blobs/data-URLs, so every download
+ *    goes through the small native MediaStore plugin (SaveToDownloads —
+ *    no storage permission needed on Android 10+; on older devices the
+ *    permission is asked once when the app first opens). If MediaStore
+ *    fails, the file is written to the app cache and the Android share
+ *    sheet opens so the user can pick "Files" to save it.
+ *    On the website the browser's own download flow is used.
  *
  *  • WhatsApp share → the receipt rendered as a JPEG image.
- *      – Android WebView has no Web Share API, so inside the app the JPEG is
- *        written to the cache dir and handed to the native @capacitor/share
- *        plugin — the Android share sheet opens and WhatsApp receives the
- *        actual image file.
- *      – On the website the Web Share API (with the JPEG file) is used, with
- *        a WhatsApp-text fallback for desktop browsers.
+ *      – Android WebView has no Web Share API, so inside the app the JPEG
+ *        is written to the cache dir and handed to the native
+ *        @capacitor/share plugin — the Android share sheet opens and
+ *        WhatsApp receives the actual image file.
+ *      – On the website the Web Share API (with the JPEG file) is used,
+ *        with a WhatsApp-text fallback for desktop browsers.
  *
  * Everything here is client-side only.
  */
@@ -48,15 +52,34 @@ async function nativeShareHelpers() {
   return { Share, Filesystem, Directory }
 }
 
-/** File → raw base64 (Filesystem.writeFile expects base64, no data: prefix). */
-async function fileToBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer())
+/**
+ * Error thrown when the installed APK is too old to contain the native
+ * download/share plugins (every call ends in Capacitor's "not implemented").
+ */
+export const APP_UPDATE_MESSAGE =
+  'নতুন APK install করুন — পুরনো অ্যাপ ভার্সনে download কাজ করে না। GitHub Releases থেকে সর্বশেষ ভার্সন নিন।'
+
+/** Capacitor's error when a plugin is not registered in the native shell. */
+function isNotImplementedError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? '')
+  return /not implemented/i.test(msg)
+}
+
+/** Blob/File → raw base64 (native plugins expect base64, no data: prefix). */
+async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
   let bin = ''
   const chunk = 0x8000
   for (let i = 0; i < bytes.length; i += chunk) {
     bin += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
   return btoa(bin)
+}
+
+/** data: URL → Blob (keeps the mime type from the URL). */
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const res = await fetch(dataUrl)
+  return res.blob()
 }
 
 /** Load a data: URL into an Image so its exact pixel size can be read. */
@@ -77,14 +100,69 @@ export async function nodeToJpegFile(node: HTMLElement, filename: string): Promi
     backgroundColor: '#ffffff',
     cacheBust: true,
   })
-  const [, b64] = dataUrl.split(',')
-  const bin = atob(b64)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  return new File([bytes], filename, { type: 'image/jpeg' })
+  const blob = await dataUrlToBlob(dataUrl)
+  return new File([blob], filename, { type: 'image/jpeg' })
 }
 
-export type DownloadOutcome = 'saved' | 'shared' | 'downloaded'
+export type SaveOutcome = 'saved' | 'shared' | 'downloaded'
+
+/**
+ * Save any blob/file directly into the device storage:
+ *
+ *  – APK: written into the public Downloads folder through the native
+ *    MediaStore plugin (no dialog, no permission on Android 10+). If
+ *    MediaStore rejects it, the file goes to the app cache and the Android
+ *    share sheet opens — picking "Files" saves it from there.
+ *  – Browser: standard anchor download → Downloads folder.
+ *
+ * Throws {@link APP_UPDATE_MESSAGE} when the APK predates the native
+ * plugins, so the UI can tell the user to update the app.
+ */
+export async function saveBlobToDevice(
+  blob: Blob,
+  filename: string,
+  mime: string
+): Promise<SaveOutcome> {
+  if (isNativeApp()) {
+    const b64 = await blobToBase64(blob)
+    try {
+      await SaveToDownloads.save({ data: b64, filename, mime })
+      return 'saved'
+    } catch (err) {
+      if (isNotImplementedError(err)) throw new Error(APP_UPDATE_MESSAGE)
+      // MediaStore rejected → cache file + share sheet (user picks "Files")
+      const { Share, Filesystem, Directory } = await nativeShareHelpers()
+      try {
+        const f = await Filesystem.writeFile({
+          path: filename,
+          data: b64,
+          directory: Directory.Cache,
+          recursive: true,
+        })
+        await Share.share({
+          title: filename,
+          files: [f.uri],
+          dialogTitle: 'Save or share the file',
+        })
+        return 'shared'
+      } catch (err2) {
+        if (isNotImplementedError(err2)) throw new Error(APP_UPDATE_MESSAGE)
+        throw err2
+      }
+    }
+  }
+
+  // browser: standard download → Downloads folder
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  return 'downloaded'
+}
 
 /**
  * Render a receipt node and save it as a real PDF — page sized exactly like
@@ -93,7 +171,7 @@ export type DownloadOutcome = 'saved' | 'shared' | 'downloaded'
 export async function downloadNodePdf(
   node: HTMLElement,
   filename: string
-): Promise<DownloadOutcome> {
+): Promise<SaveOutcome> {
   const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
   const img = await loadImage(dataUrl)
   const w = img.naturalWidth
@@ -105,37 +183,7 @@ export async function downloadNodePdf(
     compress: true,
   })
   pdf.addImage(dataUrl, 'PNG', 0, 0, w, h)
-
-  if (isNativeApp()) {
-    const dataUri = pdf.output('datauristring')
-    const b64 = dataUri.slice(dataUri.indexOf(',') + 1)
-    // 1st choice: straight into the device Downloads folder (MediaStore —
-    // no storage permission needed on Android 10+, shows in the Files app).
-    try {
-      await SaveToDownloads.save({ data: b64, filename, mime: 'application/pdf' })
-      return 'saved'
-    } catch {
-      // very old Android / MediaStore rejected → cache file + share sheet
-      // (the user can pick "Files" there to save it).
-      const { Share, Filesystem, Directory } = await nativeShareHelpers()
-      const f = await Filesystem.writeFile({
-        path: filename,
-        data: b64,
-        directory: Directory.Cache,
-        recursive: true,
-      })
-      await Share.share({
-        title: filename,
-        files: [f.uri],
-        dialogTitle: 'Save or share the receipt PDF',
-      })
-      return 'shared'
-    }
-  }
-
-  // browser: standard download → Downloads folder
-  pdf.save(filename)
-  return 'downloaded'
+  return saveBlobToDevice(pdf.output('blob'), filename, 'application/pdf')
 }
 
 export type ShareOutcome = 'shared' | 'whatsapp' | 'copied' | 'abort' | 'failed'
@@ -160,7 +208,7 @@ export async function shareReceipt(opts: {
   if (isNativeApp()) {
     try {
       const { Share, Filesystem, Directory } = await nativeShareHelpers()
-      const b64 = await fileToBase64(opts.file)
+      const b64 = await blobToBase64(opts.file)
       const f = await Filesystem.writeFile({
         path: opts.file.name,
         data: b64,

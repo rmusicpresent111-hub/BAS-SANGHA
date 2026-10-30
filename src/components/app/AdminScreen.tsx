@@ -41,6 +41,7 @@ import {
 import { useApp } from '@/lib/store'
 import { apiFetch, clearToken } from '@/lib/api'
 import { downloadNodeAsPdf } from '@/lib/pdf-report'
+import { saveBlobToDevice } from '@/lib/receipt-share'
 import type { BannerDto, MemberDto, EventDto, GalleryPhotoDto, DrawingRequestDto, QuickActionDto, NoticeDto, PujoHighlightDto } from '@/lib/types'
 import type { SummaryService } from '@/app/api/admin/report/summary/route'
 import { Loading, formatINR } from './common'
@@ -183,14 +184,13 @@ function ReportsBar({
         throw new Error(d.error || 'Report failed')
       }
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `BAS-${label}-${from || 'all'}_${to || 'time'}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      // APK → device Downloads folder via the native MediaStore plugin;
+      // browser → standard download.
+      await saveBlobToDevice(
+        blob,
+        `BAS-${label}-${from || 'all'}_${to || 'time'}.csv`,
+        'text/csv'
+      )
       toast({ title: 'Report download হয়েছে ✓' })
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : 'Report failed', variant: 'destructive' })

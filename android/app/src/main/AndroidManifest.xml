@@ -35,4 +35,8 @@
     <!-- only for direct Downloads writes on Android 9 or older (MediaStore
          needs no permission on Android 10+) -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- storage access requested once when the app first opens
+         (MainActivity.askForStoragePermissionOnce) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 </manifest>

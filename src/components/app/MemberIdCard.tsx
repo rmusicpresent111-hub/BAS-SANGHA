@@ -6,6 +6,7 @@ import { toPng } from 'html-to-image'
 import { BadgeCheck, Download, IdCard, Loader2, MapPin, Phone, Star, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import { saveBlobToDevice } from '@/lib/receipt-share'
 
 export interface MemberIdCardProps {
   name: string
@@ -38,14 +39,20 @@ export default function MemberIdCard({ name, phone, address, photoUrl, cardNumbe
     setDownloading(true)
     try {
       const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
-      const link = document.createElement('a')
-      link.href = dataUrl
-      link.download = `BAS-Member-ID-${cardNumber || 'card'}.png`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-    } catch {
-      toast({ title: 'Download failed — please try again', variant: 'destructive' })
+      const blob = await (await fetch(dataUrl)).blob()
+      const outcome = await saveBlobToDevice(
+        blob,
+        `BAS-Member-ID-${cardNumber || 'card'}.png`,
+        'image/png'
+      )
+      if (outcome === 'saved') toast({ title: 'ID card Downloads ফোল্ডারে সেভ হয়েছে ✓' })
+      else if (outcome === 'shared') toast({ title: 'ID card ready — save বা share করুন ✓' })
+      else toast({ title: 'ID card download হয়েছে ✓' })
+    } catch (err) {
+      toast({
+        title: err instanceof Error && err.message ? err.message : 'Download failed — please try again',
+        variant: 'destructive',
+      })
     } finally {
       setDownloading(false)
     }

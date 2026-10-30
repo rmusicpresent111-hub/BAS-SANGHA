@@ -77,8 +77,11 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
       if (outcome === 'saved') toast({ title: 'Receipt PDF saved to Downloads ✓' })
       else if (outcome === 'shared') toast({ title: 'Receipt PDF ready — choose an app to save/share ✓' })
       else toast({ title: 'Receipt PDF saved to device ✓ (Downloads folder)' })
-    } catch {
-      toast({ title: 'Download failed — please try again', variant: 'destructive' })
+    } catch (err) {
+      toast({
+        title: err instanceof Error && err.message ? err.message : 'Download failed — please try again',
+        variant: 'destructive',
+      })
     } finally {
       setDownloading(false)
     }
