@@ -62,6 +62,10 @@ export interface EventDto {
   eventDate?: string | null
   venue?: string | null
   fee: number
+  rules?: string | null // নিয়মাবলী — one rule per line
+  formTitle?: string | null // custom form heading
+  formNote?: string | null // custom helper note inside the form
+  formFields?: string | null // extra form fields — one label per line, * = required
   active: boolean
   sortOrder: number
 }
@@ -120,6 +124,7 @@ export interface TournamentRequestDto {
   paymentMethod?: string
   status: ReqStatus
   note?: string | null
+  extraData?: string | null // answers to the admin-defined extra form fields (JSON)
   createdAt: string
 }
 
@@ -137,6 +142,7 @@ export interface DrawingRequestDto {
   docUrl: string
   status: ReqStatus | 'UNPAID'
   note?: string | null
+  extraData?: string | null // answers to the admin-defined extra form fields (JSON)
   createdAt: string
 }
 
@@ -148,5 +154,6 @@ export interface BloodRequestDto {
   phone: string
   status: ReqStatus
   note?: string | null
+  extraData?: string | null // answers to the admin-defined extra form fields (JSON)
   createdAt: string
 }

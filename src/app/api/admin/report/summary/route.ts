@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
 import { ensureDrawingColumns, ensurePaymentMethodColumns } from '@/lib/drawing-migrate'
+import { ensureFormColumns } from '@/lib/form-migrate'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest) {
   try {
     await ensurePaymentMethodColumns()
     await ensureDrawingColumns()
+    await ensureFormColumns()
 
     const [donations, members, tournaments, drawings, blood] = await Promise.all([
       db.donation.findMany({ where: { ...range, status: 'VERIFIED' }, orderBy: { createdAt: 'desc' } }),

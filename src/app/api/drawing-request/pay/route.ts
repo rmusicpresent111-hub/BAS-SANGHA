@@ -4,6 +4,7 @@ import { getUser } from '@/lib/auth'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
 import { findUtrConflict, UTR_TAKEN_MSG } from '@/lib/utr'
 import { ensureDrawingColumns } from '@/lib/drawing-migrate'
+import { ensureFormColumns } from '@/lib/form-migrate'
 
 const UTR_RE = /^[A-Za-z0-9]{10,22}$/
 
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await ensureDrawingColumns()
+    await ensureFormColumns()
     const body = await req.json().catch(() => ({}))
     const utr = String(body.utr || '').trim().toUpperCase()
 

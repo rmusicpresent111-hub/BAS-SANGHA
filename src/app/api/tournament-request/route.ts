@@ -4,6 +4,8 @@ import { getUser } from '@/lib/auth'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
 import { findUtrConflict, UTR_TAKEN_MSG } from '@/lib/utr'
 import { ensurePaymentMethodColumns } from '@/lib/drawing-migrate'
+import { ensureFormColumns } from '@/lib/form-migrate'
+import { sanitizeExtraData } from '@/lib/extra-data'
 
 function validType(t: string) {
   return t === 'CRICKET' || t === 'FOOTBALL'
@@ -16,6 +18,7 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get('type') || 'CRICKET'
   if (!validType(type)) return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
   try {
+    await ensureFormColumns()
     const request = await db.tournamentRequest.findFirst({
       where: { userId: session.uid, type },
       orderBy: { createdAt: 'desc' },
@@ -37,6 +40,7 @@ export async function POST(req: NextRequest) {
   if (Math.random() < 0.05) pruneRateLimits()
   try {
     await ensurePaymentMethodColumns()
+    await ensureFormColumns()
     const body = await req.json()
     // audit: hard length caps on free-text fields (DB abuse / spam control)
     const type = String(body.type || '')
@@ -45,6 +49,7 @@ export async function POST(req: NextRequest) {
     const phone = String(body.phone || '').trim().slice(0, 15)
     const paymentMethod = String(body.paymentMethod || 'QR').trim().slice(0, 10).toUpperCase() === 'CASH' ? 'CASH' : 'QR'
     const utr = paymentMethod === 'CASH' ? '' : String(body.utr || '').trim().slice(0, 30).toUpperCase()
+    const extraData = sanitizeExtraData(body.extraData)
 
     if (!validType(type))
       return NextResponse.json({ error: 'Invalid tournament type' }, { status: 400 })
@@ -92,7 +97,7 @@ export async function POST(req: NextRequest) {
       if (dup) return null
       if (paymentMethod !== 'CASH' && (await findUtrConflict(utr, tx))) return null
       return tx.tournamentRequest.create({
-        data: { userId: session.uid, type, teamName, address, phone, fee, utr, paymentMethod, status: 'WAITING' },
+        data: { userId: session.uid, type, teamName, address, phone, fee, utr, paymentMethod, extraData, status: 'WAITING' },
       })
     })
     if (!request)

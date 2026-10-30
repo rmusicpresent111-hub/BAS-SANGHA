@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
+import { ensureFormColumns } from '@/lib/form-migrate'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -11,6 +12,7 @@ const TYPES = ['CRICKET', 'FOOTBALL', 'DRAWING', 'BLOOD']
 export async function GET(req: NextRequest) {
   const session = await getUser(req)
   if (session?.role !== 'ADMIN') return deny()
+  await ensureFormColumns()
   const events = await db.event.findMany({ orderBy: { sortOrder: 'asc' } })
   return NextResponse.json({ events })
 }
@@ -20,6 +22,7 @@ export async function PUT(req: NextRequest) {
   const session = await getUser(req)
   if (session?.role !== 'ADMIN') return deny()
   try {
+    await ensureFormColumns()
     const b = await req.json()
     const type = String(b.type || '')
     if (!TYPES.includes(type)) return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
@@ -31,6 +34,11 @@ export async function PUT(req: NextRequest) {
     if (b.venue !== undefined) data.venue = b.venue ? String(b.venue) : null
     if (b.fee !== undefined) data.fee = Math.max(0, Number(b.fee) || 0)
     if (b.active !== undefined) data.active = Boolean(b.active)
+    // admin-editable rules + form customization (per event)
+    if (b.rules !== undefined) data.rules = b.rules ? String(b.rules).slice(0, 4000) : null
+    if (b.formTitle !== undefined) data.formTitle = b.formTitle ? String(b.formTitle).slice(0, 120) : null
+    if (b.formNote !== undefined) data.formNote = b.formNote ? String(b.formNote).slice(0, 1000) : null
+    if (b.formFields !== undefined) data.formFields = b.formFields ? String(b.formFields).slice(0, 1500) : null
     const event = await db.event.upsert({
       where: { type },
       update: data,

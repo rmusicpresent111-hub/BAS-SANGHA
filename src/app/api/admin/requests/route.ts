@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
 import { ensureDrawingColumns } from '@/lib/drawing-migrate'
+import { ensureFormColumns } from '@/lib/form-migrate'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
   if (session?.role !== 'ADMIN') return deny()
   const tab = (req.nextUrl.searchParams.get('tab') || 'member') as Tab
   try {
+    await ensureFormColumns()
     if (tab === 'member') {
       const requests = await db.memberRequest.findMany({ orderBy: { createdAt: 'desc' } })
       const users = await db.user.findMany({ where: { id: { in: requests.map((r) => r.userId) } } })

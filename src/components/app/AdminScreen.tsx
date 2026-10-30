@@ -44,6 +44,8 @@ import { downloadNodeAsPdf } from '@/lib/pdf-report'
 import type { BannerDto, MemberDto, EventDto, GalleryPhotoDto, DrawingRequestDto, QuickActionDto, NoticeDto, PujoHighlightDto } from '@/lib/types'
 import type { SummaryService } from '@/app/api/admin/report/summary/route'
 import { Loading, formatINR } from './common'
+import { parseFormFields } from './event-form'
+import { extraDataRows } from '@/lib/extra-data'
 import DonationReceipt, { type DonationReceiptData } from './DonationReceipt'
 import { Button } from '@/components/ui/button'
 import {
@@ -811,6 +813,8 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
   })
 
   const rowsFor = (r: GenericReq): { label: string; value: string }[] => {
+    // answers to the admin-defined extra form fields (tournament/drawing/blood)
+    const extra = tab === 'member' ? [] : extraDataRows(typeof r.extraData === 'string' ? r.extraData : null)
     if (tab === 'member')
       return [
         { label: 'Name', value: String(r.name || '') },
@@ -838,6 +842,7 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
             { label: 'Payment', value: 'QR / UPI' },
             { label: 'UTR', value: String(r.utr || '') },
           ]),
+        ...extra,
       ]
     if (tab === 'drawing')
       return [
@@ -854,11 +859,13 @@ function RequestsTab({ tab, title }: { tab: string; title: string }) {
             { label: 'UTR', value: String(r.utr || '—') },
           ]),
         { label: 'Document', value: 'uploaded ✓' },
+        ...extra,
       ]
     return [
       { label: 'Name', value: String(r.name || '') },
       { label: 'Address', value: String(r.address || '') },
       { label: 'Phone', value: String(r.phone || '') },
+      ...extra,
     ]
   }
 
@@ -1504,6 +1511,50 @@ function EventEditor({ ev, patch, save }: { ev: EventDto; patch: (id: string, p:
       <Field label="Fee (₹) — 0 for free" type="number" value={String(ev.fee)} onChange={(e) => patch(ev.id, { fee: Number(e.target.value) })} />
       <Field label="Description" value={ev.description || ''} onChange={(e) => patch(ev.id, { description: e.target.value })} />
       <ImageUpload label="Banner Image" value={ev.bannerUrl} onChange={(url) => patch(ev.id, { bannerUrl: url })} />
+
+      {/* ---- নিয়মাবলী + form customization (user side-এ সরাসরি দেখাবে) ---- */}
+      <div className="space-y-2.5 rounded-xl border border-dashed border-blue-200 bg-blue-50/40 p-3">
+        <p className="text-[11px] font-black uppercase tracking-wider text-blue-900">নিয়মাবলী ও ফর্ম সেটিংস</p>
+        <div className="space-y-1">
+          <Label className="text-xs">নিয়মাবলী (Rules)</Label>
+          <Textarea
+            rows={4}
+            value={ev.rules || ''}
+            onChange={(e) => patch(ev.id, { rules: e.target.value })}
+            placeholder={'প্রতি লাইনে একটি করে নিয়ম লিখুন — app-এ নম্বর দিয়ে দেখাবে\nযেমন: বয়স ১৮-৬০ বছরের মধ্যে হতে হবে\nখালি রাখলে এই অংশ দেখাবে না'}
+          />
+        </div>
+        <Field
+          label="Form Title (optional)"
+          value={ev.formTitle || ''}
+          onChange={(e) => patch(ev.id, { formTitle: e.target.value })}
+          placeholder="ফর্মের শিরোনাম — খালি রাখলে default শিরোনাম"
+        />
+        <div className="space-y-1">
+          <Label className="text-xs">Form Note (optional)</Label>
+          <Textarea
+            rows={2}
+            value={ev.formNote || ''}
+            onChange={(e) => patch(ev.id, { formNote: e.target.value })}
+            placeholder="ফর্মের ভিতরে ছোট নোট/নির্দেশ দেখাতে চাইলে লিখুন"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Extra Form Fields (optional)</Label>
+          <Textarea
+            rows={3}
+            value={ev.formFields || ''}
+            onChange={(e) => patch(ev.id, { formFields: e.target.value })}
+            placeholder={'প্রতি লাইনে একটি করে নতুন ফিল্ড (সর্বোচ্চ ১০)\nশেষে * দিলে সেটি required হবে\nযেমন: T-Shirt Size *'}
+          />
+          {(parseFormFields(ev.formFields).length || 0) > 0 && (
+            <p className="text-[11px] font-semibold text-emerald-700">
+              ✓ {parseFormFields(ev.formFields).length} টি extra ফিল্ড যুক্ত হবে
+            </p>
+          )}
+        </div>
+      </div>
+
       <Button size="sm" onClick={() => save(ev)} className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"><Save className="mr-1 h-4 w-4" /> Save Event</Button>
     </div>
   )

@@ -8,6 +8,8 @@ import { apiFetch, clearToken } from '@/lib/api'
 import { useCachedJson } from '@/lib/client-cache'
 import type { BloodRequestDto, EventDto, HomeData } from '@/lib/types'
 import { ScreenHeader, TiledWatermark, Loading } from './common'
+import { ExtraFields, RulesSection, buildExtraPayload, parseFormFields } from './event-form'
+import { extraDataRows } from '@/lib/extra-data'
 import StatusCard from './StatusCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +45,7 @@ export default function BloodScreen() {
   const [step, setStep] = useState<Step>('form')
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ name: '', address: '', phone: '' })
+  const [extraValues, setExtraValues] = useState<Record<string, string>>({})
 
   const loadStatus = useCallback(async () => {
     try {
@@ -90,12 +93,18 @@ export default function BloodScreen() {
       toast({ title: 'Please enter a valid 10-digit phone number', variant: 'destructive' })
       return
     }
+    // admin-defined extra fields (required ones must be filled)
+    const built = buildExtraPayload(parseFormFields(event?.formFields), extraValues)
+    if (!built.ok) {
+      toast({ title: `"${built.missing}" — এই ঘরটি পূরণ করুন`, variant: 'destructive' })
+      return
+    }
     setSubmitting(true)
     try {
       const res = await apiFetch('/api/blood-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...(built.data ? { extraData: built.data } : {}) }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Submission failed')
@@ -142,6 +151,7 @@ export default function BloodScreen() {
               { label: 'Name', value: existing.name },
               { label: 'Address', value: existing.address },
               { label: 'Phone', value: existing.phone },
+              ...extraDataRows(existing.extraData),
               ...(event?.eventDate ? [{ label: 'Camp Date', value: event.eventDate }] : []),
               ...(event?.venue ? [{ label: 'Venue', value: event.venue }] : []),
             ]}
@@ -184,6 +194,9 @@ export default function BloodScreen() {
               </div>
             )}
 
+            {/* নিয়মাবলী (admin-editable in Events tab) */}
+            <RulesSection text={event?.rules} tone="red" />
+
             {/* benefits in Bengali */}
             <section aria-label="Blood donation benefits">
               <h3 className="mb-3 flex items-center gap-2 text-base font-black text-red-900">
@@ -208,7 +221,7 @@ export default function BloodScreen() {
             <form onSubmit={submit} className="space-y-4">
               <div className="space-y-3.5 rounded-2xl border border-red-200 bg-white p-5 shadow-md">
                 <h3 className="flex items-center gap-1.5 text-sm font-black text-stone-800">
-                  <HandHeart className="h-4 w-4 text-red-600" /> Donor Registration
+                  <HandHeart className="h-4 w-4 text-red-600" /> {event?.formTitle || 'Donor Registration'}
                 </h3>
                 <div className="space-y-1.5">
                   <Label>Name *</Label>
@@ -222,8 +235,16 @@ export default function BloodScreen() {
                   <Label>Phone Number *</Label>
                   <Input value={form.phone} onChange={set('phone')} type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit number" />
                 </div>
+                {/* admin-defined extra fields */}
+                <ExtraFields
+                  fields={parseFormFields(event?.formFields)}
+                  values={extraValues}
+                  onChange={(label, v) => setExtraValues((s) => ({ ...s, [label]: v }))}
+                />
                 <p className="flex items-center gap-1.5 rounded-xl bg-red-50 p-3 text-[11px] leading-relaxed text-red-800">
-                  <Phone className="h-3.5 w-3.5 shrink-0" /> রক্তদানের যোগ্যতা: বয়স ১৮-৬০ বছর, ওজন ৪৫ কেজির বেশি, শেষ রক্তদানের পর ন্যূনতম ৩ মাস অতিক্রান্ত।
+                  <Phone className="h-3.5 w-3.5 shrink-0" />{' '}
+                  {event?.formNote ||
+                    'রক্তদানের যোগ্যতা: বয়স ১৮-৬০ বছর, ওজন ৪৫ কেজির বেশি, শেষ রক্তদানের পর ন্যূনতম ৩ মাস অতিক্রান্ত।'}
                 </p>
               </div>
 

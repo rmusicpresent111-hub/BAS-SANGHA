@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
 import { ensureCommitteePhoneVisibleColumn } from '@/lib/committee-migrate'
+import { ensureFormColumns } from '@/lib/form-migrate'
 
 export async function GET(req: NextRequest) {
   // audit: light throttle against scraping/DDoS (generous for real users)
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest) {
   if (Math.random() < 0.05) pruneRateLimits()
   try {
     await ensureCommitteePhoneVisibleColumn()
+    await ensureFormColumns()
     const [banners, members, events, settings, quickActions, highlights, notices] = await Promise.all([
       db.banner.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
       db.committeeMember.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),

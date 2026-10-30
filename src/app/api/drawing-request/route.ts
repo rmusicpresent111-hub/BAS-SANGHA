@@ -4,6 +4,8 @@ import { getUser } from '@/lib/auth'
 import { saveUpload } from '@/lib/upload'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
 import { ensureDrawingColumns, ensurePaymentMethodColumns } from '@/lib/drawing-migrate'
+import { ensureFormColumns } from '@/lib/form-migrate'
+import { sanitizeExtraData } from '@/lib/extra-data'
 
 /** Default entry fee (₹30) when the admin hasn't set a DRAWING event fee. */
 const DEFAULT_FEE = 30
@@ -20,6 +22,7 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     await ensureDrawingColumns()
+    await ensureFormColumns()
     const request = await db.drawingRequest.findFirst({
       where: { userId: session.uid },
       orderBy: { createdAt: 'desc' },
@@ -51,6 +54,7 @@ export async function POST(req: NextRequest) {
   try {
     await ensureDrawingColumns()
     await ensurePaymentMethodColumns()
+    await ensureFormColumns()
     const form = await req.formData()
     // audit: hard length caps on free-text fields (DB abuse / spam control)
     const name = String(form.get('name') || '').trim().slice(0, 80)
@@ -59,6 +63,7 @@ export async function POST(req: NextRequest) {
     const schoolName = String(form.get('schoolName') || '').trim().slice(0, 120)
     const phone = String(form.get('phone') || '').trim().slice(0, 15)
     const paymentMethod = String(form.get('paymentMethod') || 'QR').trim().slice(0, 10).toUpperCase() === 'CASH' ? 'CASH' : 'QR'
+    const extraData = sanitizeExtraData(form.get('extraData'))
     const doc = form.get('doc')
 
     if (!name || !fatherName || !className || !schoolName)
@@ -99,6 +104,7 @@ export async function POST(req: NextRequest) {
         fee,
         docUrl,
         paymentMethod,
+        extraData,
         // cash skips the online payment step — straight into the review queue
         status: paymentMethod === 'CASH' ? 'WAITING' : 'UNPAID',
       },
@@ -122,6 +128,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Too many attempts. Please try again after 10 minutes.' }, { status: 429 })
   try {
     await ensureDrawingColumns()
+    await ensureFormColumns()
     const entry = await db.drawingRequest.findFirst({
       where: { userId: session.uid, status: 'UNPAID' },
       orderBy: { createdAt: 'desc' },

@@ -16,6 +16,8 @@ import { apiFetch, clearToken } from '@/lib/api'
 import { useCachedJson } from '@/lib/client-cache'
 import type { TournamentRequestDto, EventDto, HomeData } from '@/lib/types'
 import { ScreenHeader, Watermark, formatINR, Loading } from './common'
+import { ExtraFields, RulesSection, buildExtraPayload, parseFormFields } from './event-form'
+import { extraDataRows } from '@/lib/extra-data'
 import PaymentFlow from './PaymentFlow'
 import PaymentMethodChoice, { type PayMethod } from './PaymentMethodChoice'
 import StatusCard from './StatusCard'
@@ -36,6 +38,7 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
   const [saving, setSaving] = useState(false)
   const [payMethod, setPayMethod] = useState<PayMethod>('QR')
   const [form, setForm] = useState({ teamName: '', address: '', phone: '' })
+  const [extraValues, setExtraValues] = useState<Record<string, string>>({})
 
   const isCricket = type === 'CRICKET'
   const title = isCricket ? 'Cricket Tournament' : 'Football Tournament'
@@ -86,6 +89,12 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
       toast({ title: 'Please enter a valid 10-digit phone number', variant: 'destructive' })
       return false
     }
+    // admin-defined extra fields (required ones must be filled)
+    const built = buildExtraPayload(parseFormFields(event?.formFields), extraValues)
+    if (!built.ok) {
+      toast({ title: `"${built.missing}" — এই ঘরটি পূরণ করুন`, variant: 'destructive' })
+      return false
+    }
     // never enter the pay step before the real fee is known — otherwise the
     // UPI intent could be built with a wrong fallback amount
     if (!feeLoaded && payMethod !== 'CASH') {
@@ -132,12 +141,18 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
 
   /** CASH path — no UTR, admin verifies the cash by hand */
   const submitCash = async () => {
-    const ok = await postRequest({ ...form, type, paymentMethod: 'CASH' })
+    const built = buildExtraPayload(parseFormFields(event?.formFields), extraValues)
+    if (!built.ok) return // validateForm already surfaced the missing field
+    const extra = built.data ? { extraData: built.data } : {}
+    const ok = await postRequest({ ...form, type, paymentMethod: 'CASH', ...extra })
     if (ok) setStep('status')
   }
 
   const submitUtr = async (utr: string): Promise<{ ok: boolean; error?: string }> => {
-    const ok = await postRequest({ ...form, type, paymentMethod: 'QR', utr })
+    const built = buildExtraPayload(parseFormFields(event?.formFields), extraValues)
+    if (!built.ok) return { ok: false, error: `"${built.missing}" পূরণ করুন` }
+    const extra = built.data ? { extraData: built.data } : {}
+    const ok = await postRequest({ ...form, type, paymentMethod: 'QR', utr, ...extra })
     return ok ? { ok: true } : { ok: false, error: 'Submission failed' }
   }
 
@@ -184,6 +199,7 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
               { label: 'Venue', value: event?.venue || 'Dakshin Gobindapur Ground' },
               { label: 'Address', value: existing.address },
               { label: 'Phone', value: existing.phone },
+              ...extraDataRows(existing.extraData),
               { label: 'Entry Fee Paid', value: formatINR(existing.fee) },
               ...(String(existing.paymentMethod || '').toUpperCase() === 'CASH'
                 ? [{ label: 'Payment', value: '💵 Cash (নগদ) — admin verification' }]
@@ -216,11 +232,14 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
               </div>
             )}
 
+            {/* নিয়মাবলী (admin-editable in Events tab) */}
+            <RulesSection text={event?.rules} tone="blue" />
+
             <form onSubmit={startPayment} className="space-y-4">
               <div className="space-y-3.5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                 <h3 className="flex items-center gap-1.5 text-sm font-black text-stone-800">
                   {isCricket ? <Trophy className="h-4 w-4 text-blue-800" /> : <Volleyball className="h-4 w-4 text-blue-800" />}
-                  Team Registration
+                  {event?.formTitle || 'Team Registration'}
                 </h3>
                 <div className="space-y-1.5">
                   <Label>Team Name *</Label>
@@ -234,6 +253,16 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
                   <Label>Phone Number *</Label>
                   <Input value={form.phone} onChange={set('phone')} type="tel" inputMode="numeric" maxLength={10} placeholder="Captain's 10-digit number" />
                 </div>
+                {/* admin-defined extra fields */}
+                <ExtraFields
+                  fields={parseFormFields(event?.formFields)}
+                  values={extraValues}
+                  onChange={(label, v) => setExtraValues((s) => ({ ...s, [label]: v }))}
+                />
+                {/* admin note for this form (optional) */}
+                {event?.formNote && (
+                  <p className="rounded-xl bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-900">{event.formNote}</p>
+                )}
                 <div className="flex items-center justify-between rounded-xl bg-stone-50 p-3.5">
                   <p className="flex items-center gap-1.5 text-sm font-bold text-stone-700">
                     <Users className="h-4 w-4 text-stone-400" /> Entry Fee Amount

@@ -90,6 +90,10 @@ model Event {
   eventDate   String? // display text
   venue       String?
   fee         Int     @default(0)
+  rules       String? // নিয়মাবলী — multiline, one rule per line, shown as bullets in the app
+  formTitle   String? // custom form heading (falls back to the screen default)
+  formNote    String? // custom helper note shown inside the form
+  formFields  String? // extra form fields — one label per line, trailing * = required
   active      Boolean @default(true)
   sortOrder   Int     @default(0)
 }
@@ -126,6 +130,7 @@ model TournamentRequest {
   paymentMethod String @default("QR") // QR (UPI online) | CASH (paid by hand, admin verifies)
   status    String   @default("WAITING")
   note      String?
+  extraData String? // answers to the admin-defined extra form fields (flat JSON object)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -144,6 +149,7 @@ model DrawingRequest {
   docUrl     String
   status     String   @default("WAITING") // UNPAID (form done, awaiting payment) | WAITING (paid, awaiting admin) | APPROVED | REJECTED
   note       String?
+  extraData  String? // answers to the admin-defined extra form fields (flat JSON object)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -156,6 +162,7 @@ model BloodRequest {
   phone     String
   status    String   @default("WAITING")
   note      String?
+  extraData String? // answers to the admin-defined extra form fields (flat JSON object)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

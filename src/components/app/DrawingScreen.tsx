@@ -9,6 +9,8 @@ import { apiFetch, clearToken } from '@/lib/api'
 import { useCachedJson } from '@/lib/client-cache'
 import type { DrawingRequestDto, EventDto, HomeData } from '@/lib/types'
 import { ScreenHeader, Watermark, Loading, formatINR } from './common'
+import { ExtraFields, RulesSection, buildExtraPayload, parseFormFields } from './event-form'
+import { extraDataRows } from '@/lib/extra-data'
 import StatusCard from './StatusCard'
 import DrawingReceipt from './DrawingReceipt'
 import PaymentFlow from './PaymentFlow'
@@ -32,6 +34,7 @@ export default function DrawingScreen() {
   const [payKey, setPayKey] = useState(0) // remount PaymentFlow for a fresh timer after expiry
   const [payMethod, setPayMethod] = useState<PayMethod>('QR')
   const [form, setForm] = useState({ name: '', fatherName: '', className: '', schoolName: '', phone: '' })
+  const [extraValues, setExtraValues] = useState<Record<string, string>>({})
   const fileRef = useRef<HTMLInputElement>(null)
 
   const loadStatus = useCallback(async (): Promise<DrawingRequestDto | null> => {
@@ -125,6 +128,12 @@ export default function DrawingScreen() {
       toast({ title: 'Please upload Aadhaar card or birth certificate', variant: 'destructive' })
       return
     }
+    // admin-defined extra fields (required ones must be filled)
+    const built = buildExtraPayload(parseFormFields(event?.formFields), extraValues)
+    if (!built.ok) {
+      toast({ title: `"${built.missing}" — এই ঘরটি পূরণ করুন`, variant: 'destructive' })
+      return
+    }
     setSubmitting(true)
     try {
       const fd = new FormData()
@@ -134,6 +143,7 @@ export default function DrawingScreen() {
       fd.set('schoolName', form.schoolName)
       fd.set('phone', form.phone)
       fd.set('paymentMethod', payMethod)
+      if (built.data) fd.set('extraData', built.data)
       fd.set('doc', file)
       const res = await apiFetch('/api/drawing-request', { method: 'POST', body: fd })
       const data = await res.json()
@@ -210,6 +220,7 @@ export default function DrawingScreen() {
                 { label: 'Class', value: r.className },
                 { label: 'School', value: r.schoolName },
                 { label: 'Mobile', value: r.phone },
+                ...extraDataRows(r.extraData),
               ].map((d) => (
                 <div key={d.label} className="flex items-start justify-between gap-3 text-sm">
                   <span className="shrink-0 text-stone-500">{d.label}</span>
@@ -306,6 +317,7 @@ export default function DrawingScreen() {
           { label: 'Class', value: r.className },
           { label: 'School', value: r.schoolName },
           { label: 'Mobile', value: r.phone },
+          ...extraDataRows(r.extraData),
           { label: 'Entry Fee Paid', value: formatINR(r.fee || 0) },
           ...(String(r.paymentMethod || '').toUpperCase() === 'CASH'
             ? [{ label: 'Payment', value: '💵 Cash (নগদ) — admin verification' }]
@@ -383,9 +395,12 @@ export default function DrawingScreen() {
               </div>
             )}
 
+            {/* নিয়মাবলী (admin-editable in Events tab) */}
+            <RulesSection text={event?.rules} tone="amber" />
+
             <div className="space-y-3.5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
               <h3 className="flex items-center gap-1.5 text-sm font-black text-stone-800">
-                <Palette className="h-4 w-4 text-amber-600" /> Participant Details
+                <Palette className="h-4 w-4 text-amber-600" /> {event?.formTitle || 'Participant Details'}
               </h3>
               <div className="space-y-1.5">
                 <Label>Name *</Label>
@@ -422,6 +437,18 @@ export default function DrawingScreen() {
                   />
                 </div>
               </div>
+
+              {/* admin-defined extra fields */}
+              <ExtraFields
+                fields={parseFormFields(event?.formFields)}
+                values={extraValues}
+                onChange={(label, v) => setExtraValues((s) => ({ ...s, [label]: v }))}
+              />
+
+              {/* admin note for this form (optional) */}
+              {event?.formNote && (
+                <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">{event.formNote}</p>
+              )}
 
               {/* document upload */}
               <div className="space-y-1.5">
