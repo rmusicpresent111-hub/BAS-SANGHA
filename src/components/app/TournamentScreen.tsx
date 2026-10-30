@@ -21,6 +21,7 @@ import { extraDataRows } from '@/lib/extra-data'
 import PaymentFlow from './PaymentFlow'
 import PaymentMethodChoice, { type PayMethod } from './PaymentMethodChoice'
 import StatusCard from './StatusCard'
+import TournamentReceipt from './TournamentReceipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -186,27 +187,33 @@ export default function TournamentScreen({ type }: { type: 'CRICKET' | 'FOOTBALL
 
         {existing === undefined ? (
           <Loading />
+        ) : step === 'status' && existing && existing.status === 'REJECTED' ? (
+          <div className="relative z-10">
+            <StatusCard
+              status={existing.status}
+              title={title}
+              onReapply={() => {
+                setForm({ teamName: existing.teamName, address: existing.address, phone: existing.phone })
+                setStep('form')
+              }}
+              details={[
+                { label: 'Team Name', value: existing.teamName },
+                { label: 'Tournament', value: event?.title || title },
+                { label: 'Phone', value: existing.phone },
+                ...extraDataRows(existing.extraData),
+              ]}
+              note={existing.note}
+            />
+          </div>
         ) : step === 'status' && existing ? (
-          <StatusCard
-            status={existing.status}
-            title={title}
-            approvedLabel="Team ID — see you on the field, champions!"
-            id={existing.status === 'APPROVED' ? `BAS-${isCricket ? 'CT' : 'FT'}-${existing.id.slice(-6).toUpperCase()}` : undefined}
-            details={[
-              { label: 'Team Name', value: existing.teamName },
-              { label: 'Tournament', value: event?.title || title },
-              { label: 'Date', value: event?.eventDate || 'To be announced' },
-              { label: 'Venue', value: event?.venue || 'Dakshin Gobindapur Ground' },
-              { label: 'Address', value: existing.address },
-              { label: 'Phone', value: existing.phone },
-              ...extraDataRows(existing.extraData),
-              { label: 'Entry Fee Paid', value: formatINR(existing.fee) },
-              ...(String(existing.paymentMethod || '').toUpperCase() === 'CASH'
-                ? [{ label: 'Payment', value: '💵 Cash (নগদ) — admin verification' }]
-                : [{ label: 'UTR Number', value: existing.utr }]),
-            ]}
-            note={existing.note}
-          />
+          <div className="relative z-10">
+            <TournamentReceipt
+              request={existing}
+              eventTitle={event?.title || title}
+              eventDate={event?.eventDate}
+              venue={event?.venue}
+            />
+          </div>
         ) : step === 'pay' ? (
           <PaymentFlow
             title={`${title} Entry Fee`}

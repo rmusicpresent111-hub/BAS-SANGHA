@@ -1,10 +1,10 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { toPng } from 'html-to-image'
 import { BadgeCheck, CalendarDays, Download, GraduationCap, IndianRupee, Loader2, Palette, Phone, Share2, User, Users, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import { downloadNodePng, nodeToPngFile, shareReceipt } from '@/lib/receipt-share'
 import { formatINR } from './common'
 
 export interface DrawingReceiptData {
@@ -63,26 +63,14 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
     .filter(Boolean)
     .join('\n')
 
-  const renderPng = async () => {
-    const node = ref.current
-    if (!node) throw new Error('receipt not ready')
-    const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
-    const blob = await (await fetch(dataUrl)).blob()
-    return new File([blob], `BAS-Drawing-${shortId}.png`, { type: 'image/png' })
-  }
+  const filename = `BAS-Drawing-${shortId}.png`
 
   const handleDownload = async () => {
     const node = ref.current
     if (!node || downloading) return
     setDownloading(true)
     try {
-      const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
-      const link = document.createElement('a')
-      link.href = dataUrl
-      link.download = `BAS-Drawing-${shortId}.png`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
+      await downloadNodePng(node, filename)
       toast({ title: 'Receipt downloaded ✓' })
     } catch {
       toast({ title: 'Download failed — please try again', variant: 'destructive' })
@@ -91,34 +79,26 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
     }
   }
 
-  /** Share the receipt image via WhatsApp etc. (Web Share API); falls back to copying the details. */
+  /** Share the receipt image — WhatsApp first (share sheet, then direct WhatsApp). */
   const handleShare = async () => {
-    if (sharing) return
+    const node = ref.current
+    if (!node || sharing) return
     setSharing(true)
     try {
-      const file = await renderPng()
-      const nav = navigator as Navigator & {
-        canShare?: (data: { files?: File[] }) => boolean
-      }
-      if (typeof navigator.share === 'function' && nav.canShare?.({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Drawing Competition Receipt — B.A.S Sangha',
-          text: `ভোরের আলো সংঘ — Drawing Competition entry receipt (${entry.name})`,
-        })
-        toast({ title: 'Receipt shared ✓' })
-      } else {
-        await navigator.clipboard.writeText(receiptText)
-        toast({ title: 'This device can\'t share images — receipt details copied instead ✓' })
-      }
-    } catch (err) {
-      if ((err as DOMException)?.name === 'AbortError') return // user closed the share sheet
-      try {
-        await navigator.clipboard.writeText(receiptText)
-        toast({ title: 'Receipt details copied — paste anywhere to share ✓' })
-      } catch {
+      const file = await nodeToPngFile(node, filename)
+      const outcome = await shareReceipt({
+        file,
+        title: 'Drawing Competition Receipt — B.A.S Sangha',
+        text: `ভোরের আলো সংঘ — Drawing Competition entry receipt (${entry.name})`,
+        whatsappText: receiptText,
+      })
+      if (outcome === 'shared') toast({ title: 'Receipt shared ✓' })
+      else if (outcome === 'whatsapp') toast({ title: 'WhatsApp opened — send it to anyone ✓' })
+      else if (outcome === 'copied') toast({ title: 'Receipt details copied — paste anywhere to share ✓' })
+      else if (outcome === 'failed')
         toast({ title: 'Share failed — please Download the receipt and share it', variant: 'destructive' })
-      }
+    } catch {
+      toast({ title: 'Share failed — please Download the receipt and share it', variant: 'destructive' })
     } finally {
       setSharing(false)
     }
@@ -195,7 +175,7 @@ export default function DrawingReceipt({ entry }: { entry: DrawingReceiptData })
           className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-4 text-sm font-bold text-white hover:from-emerald-700 hover:to-emerald-600"
         >
           {sharing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Share2 className="mr-2 h-4 w-4" />}
-          {sharing ? 'Preparing…' : 'Share Receipt'}
+          {sharing ? 'Preparing…' : 'WhatsApp Share'}
         </Button>
         <Button
           onClick={handleDownload}

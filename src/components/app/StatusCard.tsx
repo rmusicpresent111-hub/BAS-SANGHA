@@ -21,7 +21,7 @@ export default function StatusCard({
   approvedLabel: string
   waitingLabel?: string
   id?: string
-  details: { label: string; value: string }[]
+  details?: { label: string; value: string }[]
   note?: string | null
   onReapply?: () => void
 }) {
@@ -89,7 +89,7 @@ export default function StatusCard({
           </div>
         )}
 
-        {details.length > 0 && (
+        {details && details.length > 0 && (
           <div className="mt-4 space-y-1.5 rounded-2xl bg-stone-50 p-3.5">
             <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-stone-400">Submitted details</p>
             {details.map((d) => (
