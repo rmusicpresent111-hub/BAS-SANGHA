@@ -47,6 +47,8 @@ export interface MemberDto {
   photoUrl: string
   sortOrder: number
   active: boolean
+  /** false = this member's phone is hidden from the public app */
+  phoneVisible?: boolean
 }
 
 export type EventType = 'CRICKET' | 'FOOTBALL' | 'DRAWING' | 'BLOOD'

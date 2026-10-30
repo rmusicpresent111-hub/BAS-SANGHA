@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUser } from '@/lib/auth'
+import { ensureCommitteePhoneVisibleColumn } from '@/lib/committee-migrate'
 
 function deny() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -9,6 +10,7 @@ function deny() {
 export async function GET(req: NextRequest) {
   const session = await getUser(req)
   if (session?.role !== 'ADMIN') return deny()
+  await ensureCommitteePhoneVisibleColumn()
   const members = await db.committeeMember.findMany({ orderBy: { sortOrder: 'asc' } })
   return NextResponse.json({ members })
 }
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!name || !photoUrl || !phone)
       return NextResponse.json({ error: 'Name, phone and photo are required' }, { status: 400 })
     const member = await db.committeeMember.create({
-      data: { name, role, phone, photoUrl, sortOrder, active: b.active !== false },
+      data: { name, role, phone, photoUrl, sortOrder, active: b.active !== false, phoneVisible: b.phoneVisible !== false },
     })
     return NextResponse.json({ member })
   } catch (e) {
@@ -49,6 +51,8 @@ export async function PUT(req: NextRequest) {
     if (b.photoUrl !== undefined) data.photoUrl = String(b.photoUrl).trim()
     if (b.sortOrder !== undefined) data.sortOrder = Number(b.sortOrder)
     if (b.active !== undefined) data.active = Boolean(b.active)
+    if (b.phoneVisible !== undefined) data.phoneVisible = Boolean(b.phoneVisible)
+    await ensureCommitteePhoneVisibleColumn()
     const member = await db.committeeMember.update({ where: { id }, data })
     return NextResponse.json({ member })
   } catch (e) {

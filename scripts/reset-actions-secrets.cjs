@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Re-set GitHub Actions secrets (repo: rmusicpresent111-hub/BAS-SANGHA)
 // Usage: bun run scripts/reset-actions-secrets.cjs <TOKEN>
 const _sodium = require('libsodium-wrappers-sumo')

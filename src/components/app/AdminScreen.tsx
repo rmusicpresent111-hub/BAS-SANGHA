@@ -34,6 +34,8 @@ import {
   Users,
   Volleyball,
   Wallet,
+  Eye,
+  EyeOff,
   X,
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
@@ -1351,6 +1353,26 @@ function CommitteeTab() {
     load()
   }
 
+  // per-member phone visibility toggle (each member has its own switch)
+  const togglePhoneVisible = async (m: MemberDto) => {
+    const next = m.phoneVisible === false
+    // optimistic update
+    setMembers((prev) => (prev ? prev.map((x) => (x.id === m.id ? { ...x, phoneVisible: next } : x)) : prev))
+    try {
+      const res = await apiFetch('/api/admin/members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: m.id, phoneVisible: next }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      toast({ title: next ? `${m.name} — ফোন নম্বর দেখা যাবে ✓` : `${m.name} — ফোন নম্বর লুকানো হলো ✓` })
+    } catch (err) {
+      // rollback on failure
+      setMembers((prev) => (prev ? prev.map((x) => (x.id === m.id ? { ...x, phoneVisible: !next } : x)) : prev))
+      toast({ title: err instanceof Error ? err.message : 'Save failed', variant: 'destructive' })
+    }
+  }
+
   if (!members) return <Loading />
   return (
     <div>
@@ -1363,9 +1385,9 @@ function CommitteeTab() {
 
       <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
         <div className="min-w-0">
-          <p className="text-xs font-black text-stone-800">📞 ফোন নম্বর hide / unhide</p>
+          <p className="text-xs font-black text-stone-800">📞 সব ফোন নম্বর একসাথে hide / unhide</p>
           <p className="mt-0.5 text-[10px] leading-relaxed text-stone-500">
-            চালু করলে user-রা কমিটি সদস্যদের ফোন নম্বর দেখতে পাবে না — শুধু নাম ও পদ দেখবে। আপনি এখানে সবসময় দেখতে পাবেন।
+            চালু করলে user-রা কারো ফোন নম্বর দেখতে পাবে না। শুধু একজনের লুকাতে বা দেখাতে চাইলে নিচে তার কার্ডের 👁 বাটন ব্যবহার করুন — প্রত্যেক সদস্যের জন্য আলাদা।
           </p>
         </div>
         <Switch disabled={phoneBusy} checked={hidePhones} onCheckedChange={togglePhones} id="hide-phones" />
@@ -1400,10 +1422,18 @@ function CommitteeTab() {
             <img src={m.photoUrl} alt={m.name} className="h-14 w-14 rounded-full border-2 border-amber-300 object-cover" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-stone-800">{m.name}</p>
-              <p className="truncate text-[11px] text-stone-400">{m.role} • {m.phone}</p>
+              <p className="truncate text-[11px] text-stone-400">
+                {m.role} • {m.phone}
+                {m.phoneVisible === false && (
+                  <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">লুকানো</span>
+                )}
+              </p>
               {!m.active && <p className="text-[10px] font-bold text-red-500">INACTIVE</p>}
             </div>
             <div className="flex shrink-0 flex-col gap-1">
+              <Button size="icon" variant="ghost" onClick={() => togglePhoneVisible(m)} aria-label={m.phoneVisible === false ? 'Show phone number' : 'Hide phone number'} title={m.phoneVisible === false ? 'ফোন নম্বর দেখান' : 'ফোন নম্বর লুকান'} className="h-8 w-8 text-amber-700 hover:bg-amber-50">
+                {m.phoneVisible === false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
               <Button size="icon" variant="ghost" onClick={() => setEditing(m)} aria-label="Edit" className="h-8 w-8 text-blue-700 hover:bg-blue-50"><Pencil className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" onClick={() => remove(m.id)} aria-label="Delete" className="h-8 w-8 text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
             </div>

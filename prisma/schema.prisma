@@ -33,9 +33,10 @@ model CommitteeMember {
   role      String   @default("Member") // designation
   phone     String
   photoUrl  String
-  sortOrder Int      @default(0)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  sortOrder    Int      @default(0)
+  active       Boolean  @default(true)
+  phoneVisible Boolean  @default(true) // per-member: hide phone from public app
+  createdAt    DateTime @default(now())
 }
 
 model Banner {

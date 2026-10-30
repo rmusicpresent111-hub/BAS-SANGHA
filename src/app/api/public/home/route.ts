@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit, clientIp, pruneRateLimits } from '@/lib/rate-limit'
+import { ensureCommitteePhoneVisibleColumn } from '@/lib/committee-migrate'
 
 export async function GET(req: NextRequest) {
   // audit: light throttle against scraping/DDoS (generous for real users)
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   if (Math.random() < 0.05) pruneRateLimits()
   try {
+    await ensureCommitteePhoneVisibleColumn()
     const [banners, members, events, settings, quickActions, highlights, notices] = await Promise.all([
       db.banner.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
       db.committeeMember.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
@@ -30,11 +32,15 @@ export async function GET(req: NextRequest) {
       'clubAddress',
     ])
     for (const s of settings) if (PUBLIC_KEYS.has(s.key)) settingsMap[s.key] = s.value
-    // admin can hide committee phone numbers from the public app
+    // Admin controls phone visibility two ways:
+    //   1. master switch  -> Setting.hideCommitteePhone ('1' hides ALL phones)
+    //   2. per member     -> CommitteeMember.phoneVisible (false hides one phone)
+    // The master switch wins; otherwise each member's own toggle applies.
     const hidePhones = (settings.find((s) => s.key === 'hideCommitteePhone')?.value === '1')
-    const publicMembers = hidePhones
-      ? members.map((m) => ({ ...m, phone: '' }))
-      : members
+    const publicMembers = members.map((m) => ({
+      ...m,
+      phone: hidePhones || m.phoneVisible === false ? '' : m.phone,
+    }))
     return NextResponse.json({
       banners,
       members: publicMembers,
