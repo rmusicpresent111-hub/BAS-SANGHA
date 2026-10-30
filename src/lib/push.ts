@@ -20,6 +20,14 @@ const TOKEN_KEY = 'push_token'
 
 const VAPID = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
 
+/**
+ * Firebase SDK's built-in placeholder VAPID key (hardcoded in the SDK source
+ * and all tutorials). It does NOT belong to any real Firebase project, so
+ * getToken always fails with it — devices never register. Copying it into
+ * the env is a classic copy-paste mistake; surface it as a config problem.
+ */
+const SDK_DEMO_VAPID_PREFIX = 'BDOU99-h67HcA6JeFXHbSNMu7e2yNNu3RzoMj8TM4W88jITf'
+
 /** Browser can do web push at all (secure context + SW + Notification APIs). */
 export function pushSupported(): boolean {
   if (typeof window === 'undefined') return false
@@ -54,6 +62,12 @@ export async function enablePush(): Promise<{ ok: boolean; error?: string }> {
     return {
       ok: false,
       error: 'Server missing NEXT_PUBLIC_FIREBASE_VAPID_KEY (Firebase console → Web Push certificate)',
+    }
+  if (VAPID.startsWith(SDK_DEMO_VAPID_PREFIX))
+    return {
+      ok: false,
+      error:
+        'Firebase Web Push certificate ভুল আছে — এটা sample key। Firebase Console → Project settings → Cloud Messaging → Web Push certificates থেকে নিজের key generate করে NEXT_PUBLIC_FIREBASE_VAPID_KEY-তে দিন।',
     }
   const messaging = await getFirebaseMessaging()
   if (!messaging) return { ok: false, error: 'এই ব্রাউজারে Firebase Messaging support নেই' }
@@ -138,6 +152,10 @@ async function getTokenWithVapid(messaging: Messaging, reg: ServiceWorkerRegistr
     return await getToken(messaging, { vapidKey: VAPID as string, serviceWorkerRegistration: reg })
   } catch (e) {
     console.error('getToken failed', e)
-    return null
+    // surface the real FCM error (e.g. mismatchSenderId) so the admin can see WHY
+    const detail = e instanceof Error ? e.message : String(e ?? '')
+    throw new Error(
+      `Firebase token পাওয়া যায়নি${detail ? ` — ${detail.slice(0, 140)}` : ''}`
+    )
   }
 }
