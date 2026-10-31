@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { apiFetch, clearToken } from '@/lib/api'
-import { pushLocallyEnabled, pushSupported, enablePush, disablePush } from '@/lib/push'
+import { pushActiveOnDevice, enablePush, disablePush } from '@/lib/push'
 import { ScreenHeader } from './common'
 import MainShell from './MainShell'
 import {
@@ -48,12 +48,7 @@ export default function MoreScreen() {
   const [pushBusy, setPushBusy] = useState(false)
 
   useEffect(() => {
-    setPushOn(
-      pushSupported() &&
-        typeof Notification !== 'undefined' &&
-        Notification.permission === 'granted' &&
-        pushLocallyEnabled()
-    )
+    setPushOn(pushActiveOnDevice())
   }, [])
 
   const togglePush = async (on: boolean) => {

@@ -50,38 +50,68 @@ export async function POST(req: NextRequest) {
     if (!title || !text)
       return NextResponse.json({ error: 'Title and message are required' }, { status: 400 })
 
-    const rows = await db.pushToken.findMany({ select: { token: true }, take: 2000 })
+    const rows = await db.pushToken.findMany({ select: { token: true, platform: true }, take: 2000 })
     if (rows.length === 0)
       return NextResponse.json({ error: 'No device registered yet' }, { status: 409 })
 
-    const tokens = rows.map((r) => r.token)
-    const res = await messaging.sendEachForMulticast({
-      tokens,
-      notification: { title, body: text },
-      webpush: {
-        notification: { icon: '/logo.png', badge: '/logo.png', tag: 'bas-push' },
-        fcmOptions: { link: '/' },
-      },
-    })
+    // Web tokens need the webpush config; native (APK) tokens need the android
+    // config — sending a webpush-configured message to a native FCM token fails.
+    const webTokens = rows.filter((r) => r.platform === 'web').map((r) => r.token)
+    const nativeTokens = rows.filter((r) => r.platform !== 'web').map((r) => r.token)
+
+    type Batch = { tokens: string[]; result: Awaited<ReturnType<typeof messaging.sendEachForMulticast>> | null }
+    const batches: Batch[] = []
+    if (webTokens.length) {
+      batches.push({
+        tokens: webTokens,
+        result: await messaging.sendEachForMulticast({
+          tokens: webTokens,
+          notification: { title, body: text },
+          webpush: {
+            notification: { icon: '/logo.png', badge: '/logo.png', tag: 'bas-push' },
+            fcmOptions: { link: '/' },
+          },
+        }),
+      })
+    }
+    if (nativeTokens.length) {
+      batches.push({
+        tokens: nativeTokens,
+        result: await messaging.sendEachForMulticast({
+          tokens: nativeTokens,
+          notification: { title, body: text },
+          android: { priority: 'high' },
+        }),
+      })
+    }
+
+    let successCount = 0
+    let failureCount = 0
+    for (const b of batches) {
+      successCount += b.result!.successCount
+      failureCount += b.result!.failureCount
+    }
 
     // cleanup dead tokens so the registry stays healthy
     const dead: string[] = []
-    res.responses.forEach((r, i) => {
-      if (r.success) return
-      const err = r.error as { code?: string; message?: string } | undefined
-      const code = String(err?.code || '')
-      const msg = String(err?.message || '')
-      const isDead =
-        code.includes('registration-token-not-registered') ||
-        code.includes('invalid-registration-token') ||
-        (code.includes('invalid-argument') && msg.includes('not a valid FCM registration token'))
-      if (isDead) dead.push(tokens[i])
-    })
+    for (const b of batches) {
+      b.result!.responses.forEach((r, i) => {
+        if (r.success) return
+        const err = r.error as { code?: string; message?: string } | undefined
+        const code = String(err?.code || '')
+        const msg = String(err?.message || '')
+        const isDead =
+          code.includes('registration-token-not-registered') ||
+          code.includes('invalid-registration-token') ||
+          (code.includes('invalid-argument') && msg.includes('not a valid FCM registration token'))
+        if (isDead) dead.push(b.tokens[i])
+      })
+    }
     if (dead.length) await db.pushToken.deleteMany({ where: { token: { in: dead } } })
 
     return NextResponse.json({
-      sent: res.successCount,
-      failed: res.failureCount,
+      sent: successCount,
+      failed: failureCount,
       removed: dead.length,
     })
   } catch (e) {

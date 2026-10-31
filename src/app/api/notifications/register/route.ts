@@ -18,6 +18,13 @@ function cleanToken(v: unknown): string | null {
   return t
 }
 
+/** 'web' = browser web-push token, 'android'/'ios' = native FCM token. */
+function cleanPlatform(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const p = v.trim().toLowerCase()
+  return ['web', 'android', 'ios'].includes(p) ? p : null
+}
+
 export async function POST(req: NextRequest) {
   if (!rateLimit(`pushreg:${clientIp(req)}`, 60, 10 * 60 * 1000))
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
@@ -29,12 +36,13 @@ export async function POST(req: NextRequest) {
     const token = cleanToken(body.token)
     if (!token)
       return NextResponse.json({ error: 'Invalid Firebase token' }, { status: 400 })
+    const platform = cleanPlatform(body.platform) ?? 'web'
     const ua = (req.headers.get('user-agent') || '').slice(0, 200)
 
     await db.pushToken.upsert({
       where: { token },
-      update: { userId: session?.uid ?? null, userAgent: ua },
-      create: { token, userId: session?.uid ?? null, platform: 'web', userAgent: ua },
+      update: { userId: session?.uid ?? null, userAgent: ua, platform },
+      create: { token, userId: session?.uid ?? null, platform, userAgent: ua },
     })
     return NextResponse.json({ ok: true })
   } catch (e) {

@@ -39,4 +39,7 @@
          (MainActivity.askForStoragePermissionOnce) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- push notifications: the system dialog on Android 13+ is requested by
+         @capacitor/push-notifications when the user turns notifications ON -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

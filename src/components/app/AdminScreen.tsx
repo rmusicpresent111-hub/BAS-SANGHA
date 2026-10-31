@@ -1781,6 +1781,13 @@ function PushTab() {
           </div>
         </div>
       )}
+      {stats && stats.tokens === 0 && (
+        <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-xs leading-relaxed text-stone-600">
+          <p className="font-black text-stone-800">কোনো device এখনো register হয়নি (0)।</p>
+          <p className="mt-1">Device তখনই register হয় যখন কেউ app-এর <b>More tab → Notification switch চালু</b> করে — তখন ওই device-এর Firebase token এখানে জমা হয়। App খুললে চালু থাকা device নিজে থেকেই refresh হয়।</p>
+          <p className="mt-1 font-semibold">Notification চালু করতে গিয়ে error দেখালে APK-টা সর্বশেষ ভার্সনে update করা আছে কিনা দেখুন — পুরনো APK-তে native notification কাজ করে না।</p>
+        </div>
+      )}
       {stats && !stats.configured && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-800">
           <p className="font-black">Server এখনো Firebase-এর সাথে connect হয়নি।</p>
